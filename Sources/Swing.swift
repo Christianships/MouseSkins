@@ -36,8 +36,6 @@ enum Swing {
     static let handoff: TimeInterval = 0.03     // pointer/overlay overlap, about two frames
     private static var hidden = false
     private static var showing = 0              // index into swords of the one on screen
-    private static var plus = false             // draw the crosshair, still, over the swing
-    private static let plusLayer = CALayer()
     private static var grip = CGPoint.zero      // grip offset from the hotspot, in screen points
 
     /// Rebuilds from the saved state; starts or stops the monitor.
@@ -46,7 +44,6 @@ enum Swing {
         swords = []
         others = []
         let s = Store.state
-        plus = s.crosshair == true
         if s.swing == true, let id = s.theme, let theme = try? Store.theme(id) {
             let lefty = s.leftHanded == true
             var used = Set<String>()
@@ -56,11 +53,7 @@ enum Swing {
                 guard let ident = g.idents.first(where: { theme.cursors[$0] != nil }),
                       var c = theme.cursors[ident] else { continue }
                 if lefty && Cursors.mirrorable.contains(ident) { c = Cursors.mirrored(c) }
-                // Match against what's registered (with the plus), but swing the bare sword.
-                if var sword = sword(c) {
-                    if plus, let p = self.sword(Crosshair.add(to: c))?.print { sword.print = p }
-                    swords.append(sword)
-                }
+                if let sword = sword(c) { swords.append(sword) }
             }
             others = theme.cursors.filter { !used.contains($0.key) }.values.compactMap { sword($0)?.print }
         }
@@ -91,7 +84,7 @@ enum Swing {
         let gripInImage = CGPoint(x: hot.x + (size.width - hot.x) * 0.8, y: hot.y + (size.height - hot.y) * 0.8)
         grip = CGPoint(x: gripInImage.x - hot.x, y: gripInImage.y - hot.y)
         let reach = ceil(hypot(max(gripInImage.x, size.width - gripInImage.x),
-                               max(gripInImage.y, size.height - gripInImage.y)) + Crosshair.pad * scale)
+                               max(gripInImage.y, size.height - gripInImage.y)))
 
         let win = window ?? makeWindow()
         generation += 1
@@ -109,17 +102,6 @@ enum Swing {
             layer.position = CGPoint(x: reach, y: reach)
             layer.contents = sword.frames[0]
             layer.contentsScale = CGFloat(sword.frames[0].width) / size.width
-            // The plus doesn't swing: it marks where the click landed.
-            plusLayer.isHidden = !plus
-            if plus, let img = Crosshair.image(k: layer.contentsScale) {
-                let side = (Crosshair.pad * 2 + 1) * scale
-                plusLayer.contents = img
-                plusLayer.contentsScale = layer.contentsScale
-                plusLayer.anchorPoint = CGPoint(x: 0, y: 1)     // top-left
-                plusLayer.bounds = CGRect(x: 0, y: 0, width: side, height: side)
-                plusLayer.position = CGPoint(x: reach - grip.x - Crosshair.pad * scale,
-                                             y: reach + grip.y + Crosshair.pad * scale)
-            }
             if sword.frames.count > 1 {         // keep an enchant glint moving
                 let glint = CAKeyframeAnimation(keyPath: "contents")
                 glint.values = sword.frames
@@ -190,8 +172,6 @@ enum Swing {
         layer.magnificationFilter = .nearest    // keep pixel art crisp
         layer.minificationFilter = .nearest
         view.layer?.addSublayer(layer)
-        plusLayer.magnificationFilter = .nearest
-        view.layer?.addSublayer(plusLayer)
         w.contentView = view
         window = w
         return w

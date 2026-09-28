@@ -122,9 +122,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let swing = item("Swing on Click", #selector(toggleSwing))
         swing.state = state.swing == true ? .on : .off
         menu.addItem(swing)
-        let plus = item("Crosshair on Tip", #selector(toggleCrosshair))
-        plus.state = state.crosshair == true ? .on : .off
-        menu.addItem(plus)
 
         menu.addItem(.separator())
         menu.addItem(item("Import…", #selector(showWindow)))
@@ -163,13 +160,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         var s = Store.state
         s.swing = s.swing == true ? nil : true
         Store.state = s     // the change notification runs Swing.update()
-    }
-
-    @objc private func toggleCrosshair() {
-        var s = Store.state
-        s.crosshair = s.crosshair == true ? nil : true
-        Store.state = s
-        if s.theme != nil { Store.applySaved() }
     }
 
     @objc private func openFolder() {

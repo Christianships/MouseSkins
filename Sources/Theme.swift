@@ -195,7 +195,6 @@ enum Store {
         var leftHanded: Bool?   // mirror pointer-style cursors
         var hideMenuBar: Bool?  // no status item; reopen the app to get the panel
         var swing: Bool?        // swing Normal/Link Select on every click (see Swing)
-        var crosshair: Bool?    // "+" on the Normal/Link Select hotspot (see Crosshair)
     }
 
     static var state: State {

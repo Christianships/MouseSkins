@@ -32,7 +32,6 @@ final class LibraryModel: ObservableObject {
     @Published var leftHanded = false
     @Published var showMenuBar = true
     @Published var swing = false
-    @Published var crosshair = false
 
     // editor: a working copy of the selected theme, saved explicitly
     @Published var draft: Theme?
@@ -68,7 +67,6 @@ final class LibraryModel: ObservableObject {
         leftHanded = s.leftHanded == true
         showMenuBar = s.hideMenuBar != true
         swing = s.swing == true
-        crosshair = s.crosshair == true
         loginEnabled = SMAppService.mainApp.status == .enabled
     }
 
@@ -106,14 +104,6 @@ final class LibraryModel: ObservableObject {
         var s = Store.state
         s.swing = on ? true : nil
         Store.state = s
-        syncState()
-    }
-
-    func setCrosshair(_ on: Bool) {
-        var s = Store.state
-        s.crosshair = on ? true : nil
-        Store.state = s
-        if s.theme != nil { Store.applySaved() }
         syncState()
     }
 
@@ -939,10 +929,6 @@ struct SettingsView: View {
                     Divider().opacity(0.4)
                     row("Swing on click", "Normal and Link Select swing like a sword on every click") {
                         Toggle("", isOn: Binding(get: { model.swing }, set: { model.setSwing($0) }))
-                    }
-                    Divider().opacity(0.4)
-                    row("Crosshair on tip", "A thin + on Normal and Link Select marks exactly where you click") {
-                        Toggle("", isOn: Binding(get: { model.crosshair }, set: { model.setCrosshair($0) }))
                     }
                 }
             }
