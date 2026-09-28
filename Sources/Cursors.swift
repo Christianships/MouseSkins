@@ -152,9 +152,11 @@ enum Cursors {
     static func apply(_ theme: Theme) -> [String] {
         captureDefaultsIfClean()
         reset()
-        let failed = theme.cursors.filter { !register($0.key, $0.value) }.map(\.key)
+        let lefty = Store.state.leftHanded == true
+        let flip = { (ident: String, c: Cursor) in lefty && mirrorable.contains(ident) ? mirrored(c) : c }
+        let failed = theme.cursors.filter { !register($0.key, flip($0.key, $0.value)) }.map(\.key)
         for (ident, c) in theme.cursors {
-            for alias in synonyms(of: ident) where theme.cursors[alias] == nil { register(alias, c) }
+            for alias in synonyms(of: ident) where theme.cursors[alias] == nil { register(alias, flip(alias, c)) }
         }
         if let dot = Theme.blankImage {
             register(marker, Cursor(size: CGSize(width: 1, height: 1), hotSpot: .zero,

@@ -8,6 +8,10 @@ struct Theme {
     var name: String
     var author: String?
     var cursors: [String: Cursor]   // keyed by full identifier (com.apple.…)
+    var url: URL?                   // where it was loaded from; save() writes back here
+    var capeIdentifier: String?
+
+    var isAnimated: Bool { cursors.values.contains { $0.frameCount > 1 } }
 
     enum LoadError: LocalizedError {
         case unreadable(String), badCursor(String, String)
@@ -45,7 +49,8 @@ struct Theme {
         return Theme(id: url.deletingPathExtension().lastPathComponent,
                      name: plist["CapeName"] as? String ?? url.deletingPathExtension().lastPathComponent,
                      author: plist["Author"] as? String,
-                     cursors: cursors)
+                     cursors: cursors, url: url,
+                     capeIdentifier: plist["Identifier"] as? String)
     }
 
     // MARK: folder (theme.json + PNGs)
@@ -98,7 +103,7 @@ struct Theme {
                                     images: [img1x, img2x].compactMap { $0 })
         }
         return Theme(id: dir.lastPathComponent, name: manifest.name ?? dir.lastPathComponent,
-                     author: manifest.author, cursors: cursors)
+                     author: manifest.author, cursors: cursors, url: dir)
     }
 
     /// Accepts a full identifier or a friendly name ("pointing", "Resize N-S").
@@ -110,7 +115,8 @@ struct Theme {
 
     /// Writes cursors as a Mousecape-compatible .cape (used for the saved defaults,
     /// and loadable anywhere a .cape is).
-    static func writeCape(_ cursors: [String: Cursor], name: String, to url: URL) throws {
+    static func writeCape(_ cursors: [String: Cursor], name: String, author: String = "macOS",
+                          identifier: String? = nil, to url: URL) throws {
         var dict: [String: Any] = [:]
         for (ident, c) in cursors {
             dict[ident] = [
@@ -121,8 +127,8 @@ struct Theme {
             ]
         }
         let plist: [String: Any] = [
-            "CapeName": name, "CapeVersion": 1.0, "Author": "macOS", "Cloud": false, "HiDPI": true,
-            "Identifier": "dev.msig." + name.lowercased().replacingOccurrences(of: " ", with: "-"),
+            "CapeName": name, "CapeVersion": 1.0, "Author": author, "Cloud": false, "HiDPI": true,
+            "Identifier": identifier ?? "dev.msig." + name.lowercased().replacingOccurrences(of: " ", with: "-"),
             "MinimumVersion": 2.0, "Version": 2.0, "Cursors": dict,
         ]
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -136,7 +142,7 @@ struct Theme {
 
     // MARK: helpers
 
-    private static func png(_ image: CGImage) -> Data? {
+    static func png(_ image: CGImage) -> Data? {
         let data = NSMutableData()
         guard let dest = CGImageDestinationCreateWithData(data, "public.png" as CFString, 1, nil) else { return nil }
         CGImageDestinationAddImage(dest, image, nil)
@@ -147,7 +153,7 @@ struct Theme {
         (v as? NSNumber)?.doubleValue ?? fallback
     }
 
-    private static func image(at url: URL) -> CGImage? {
+    static func image(at url: URL) -> CGImage? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         return cgImage(data)
     }
@@ -178,6 +184,8 @@ enum Store {
     struct State: Codable {
         var theme: String?      // theme id; nil = macOS default
         var scale: Float?       // nil = leave the system pointer size alone
+        var leftHanded: Bool?   // mirror pointer-style cursors
+        var hideMenuBar: Bool?  // no status item; reopen the app to get the panel
     }
 
     static var state: State {
@@ -303,5 +311,33 @@ extension Cursors {
                      "context-arrow", "link", "forbidden", "copy-drag", "crosshair"].compactMap { names[$0] }
         let ia = first.firstIndex(of: a) ?? .max, ib = first.firstIndex(of: b) ?? .max
         return ia != ib ? ia < ib : displayName(a) < displayName(b)
+    }
+}
+
+extension Theme {
+    /// Writes edits back to where the theme came from: a .cape is rewritten in
+    /// place; a folder gets fresh PNGs (<key>.png / <key>@2x.png) and theme.json.
+    func save() throws {
+        guard let url else { throw LoadError.unreadable("this theme has no file to save to") }
+        if url.pathExtension == "cape" {
+            try Theme.writeCape(cursors, name: name, author: author ?? "", identifier: capeIdentifier, to: url)
+            return
+        }
+        var entries: [String: [String: Any]] = [:]
+        for (ident, c) in cursors {
+            let key = Cursors.names.first(where: { $0.value == ident })?.key ?? ident
+            for img in c.images {
+                let scale = c.size.width > 0 ? Int((CGFloat(img.width) / c.size.width).rounded()) : 1
+                let file = url.appendingPathComponent(scale >= 2 ? "\(key)@2x.png" : "\(key).png")
+                try Theme.png(img)?.write(to: file, options: .atomic)
+            }
+            entries[key] = ["image": "\(key).png", "hotspot": [c.hotSpot.x, c.hotSpot.y],
+                            "size": [c.size.width, c.size.height], "frames": c.frameCount,
+                            "duration": c.frameDuration]
+        }
+        var manifest: [String: Any] = ["name": name, "cursors": entries]
+        if let author { manifest["author"] = author }
+        let data = try JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys])
+        try data.write(to: url.appendingPathComponent("theme.json"), options: .atomic)
     }
 }

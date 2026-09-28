@@ -13,11 +13,21 @@ msig reset
 msig login on         # open the menu bar app at login (re-applies your theme)
 ```
 
-Opening the app (or choosing Show Panel from the menu bar icon) brings up a small
-floating panel in the middle of the screen, like Spotlight. Click a theme tile to apply
-it. The slider sets cursor size, and the switch turns Open at login on or off. Use +
-to import, or drop `.cape` files and theme folders onto the panel. Right-click a tile
-to show it in Finder or trash it. Esc or clicking elsewhere closes the panel. When msig
+Opening the app (or choosing Show Panel from the menu bar icon) brings up a floating
+panel in the middle of the screen, like Spotlight. It has three tabs:
+
+- **Home**: a strip of your themes (double-click to apply). The selected theme shows
+  Applied/Animated badges and its cursors grouped by role (Normal Select, Text Select,
+  Vertical Resize…). The toolbar has import, export as `.cape`, trash, and apply. You
+  can also drop `.cape` files or theme folders onto the panel.
+- **Edit**: pick a group, drag the red dot on the preview (or use the X/Y sliders or
+  Center) to set the hotspot, change the frame time of an animated cursor, or replace
+  the image. An edit applies to every cursor in the group. Save writes it back to the
+  theme's `.cape` or folder and re-applies it if it's the current theme.
+- **Settings**: apply at login, show/hide the menu bar icon, cursor scale (1–4×), and
+  left-hand mode (mirrors pointer-style cursors).
+
+Esc or clicking elsewhere closes the panel, and it reopens on the tab you left. When msig
 starts at login it stays in the menu bar and doesn't show the panel.
 
 If you use AeroSpace, float the panel so it isn't tiled:

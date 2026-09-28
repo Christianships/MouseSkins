@@ -18,6 +18,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.button?.image = NSImage(systemSymbolName: "cursorarrow.rays", accessibilityDescription: "msig")
         menu.delegate = self
         statusItem.menu = menu
+        statusItem.isVisible = Store.state.hideMenuBar != true
+        DistributedNotificationCenter.default().addObserver(
+            forName: .init("dev.msig.changed"), object: nil, queue: .main) { [weak self] _ in
+            self?.statusItem.isVisible = Store.state.hideMenuBar != true
+        }
 
         // Login is the one moment the stock cursors are guaranteed untouched.
         Cursors.captureDefaultsIfClean()
