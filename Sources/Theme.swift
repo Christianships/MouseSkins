@@ -194,6 +194,7 @@ enum Store {
         var scale: Float?       // nil = leave the system pointer size alone
         var leftHanded: Bool?   // mirror pointer-style cursors
         var hideMenuBar: Bool?  // no status item; reopen the app to get the panel
+        var swing: Bool?        // swing Normal/Link Select on every click (see Swing)
     }
 
     static var state: State {

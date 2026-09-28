@@ -29,3 +29,6 @@ extern CGError CGSGetCursorScale(CGSConnectionID cid, float *scale);
 extern CGError CGSSetCursorScale(CGSConnectionID cid, float scale);
 
 extern char *CGSCursorNameForSystemCursor(int cursorID);
+
+// "SetsCursorInBackground" = true lets a background app hide the pointer.
+extern CGError CGSSetConnectionProperty(CGSConnectionID cid, CGSConnectionID targetCID, CFStringRef key, CFTypeRef value);

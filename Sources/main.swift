@@ -36,11 +36,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         DistributedNotificationCenter.default().addObserver(
             forName: .init("dev.mouseskins.changed"), object: nil, queue: .main) { [weak self] _ in
             self?.statusItem.isVisible = Store.state.hideMenuBar != true
+            Swing.update()
         }
 
         // Login is the one moment the stock cursors are guaranteed untouched.
         Cursors.captureDefaultsIfClean()
         Store.applySaved()
+        Swing.update()
 
         // WindowServer drops registered cursors on some of these (display
         // reconfig, fast user switching), so re-apply after each one settles.
@@ -74,7 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func scheduleReapply() {
         pendingReapply?.cancel()
-        let work = DispatchWorkItem { Store.applySaved() }
+        let work = DispatchWorkItem { Store.applySaved(); Swing.update() }
         pendingReapply = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
     }
@@ -117,6 +119,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         sizeItem.submenu = sizeMenu
         menu.addItem(sizeItem)
+        let swing = item("Swing on Click", #selector(toggleSwing))
+        swing.state = state.swing == true ? .on : .off
+        menu.addItem(swing)
 
         menu.addItem(.separator())
         menu.addItem(item("Import…", #selector(showWindow)))
@@ -149,6 +154,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func setSize(_ sender: NSMenuItem) {
         guard let v = sender.representedObject as? Float else { return }
         Store.setScale(v)
+    }
+
+    @objc private func toggleSwing() {
+        var s = Store.state
+        s.swing = s.swing == true ? nil : true
+        Store.state = s     // the change notification runs Swing.update()
     }
 
     @objc private func openFolder() {

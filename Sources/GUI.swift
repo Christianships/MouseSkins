@@ -31,6 +31,7 @@ final class LibraryModel: ObservableObject {
     @Published var loginEnabled = false
     @Published var leftHanded = false
     @Published var showMenuBar = true
+    @Published var swing = false
 
     // editor: a working copy of the selected theme, saved explicitly
     @Published var draft: Theme?
@@ -65,6 +66,7 @@ final class LibraryModel: ObservableObject {
         scale = Double(s.scale ?? Cursors.scale)
         leftHanded = s.leftHanded == true
         showMenuBar = s.hideMenuBar != true
+        swing = s.swing == true
         loginEnabled = SMAppService.mainApp.status == .enabled
     }
 
@@ -95,6 +97,13 @@ final class LibraryModel: ObservableObject {
         s.leftHanded = on ? true : nil
         Store.state = s
         if s.theme != nil { Store.applySaved() }
+        syncState()
+    }
+
+    func setSwing(_ on: Bool) {
+        var s = Store.state
+        s.swing = on ? true : nil
+        Store.state = s
         syncState()
     }
 
@@ -916,6 +925,10 @@ struct SettingsView: View {
                             Text("Left").tag(true)
                         }
                         .pickerStyle(.segmented).frame(width: 130)
+                    }
+                    Divider().opacity(0.4)
+                    row("Swing on click", "Normal and Link Select swing like a sword on every click") {
+                        Toggle("", isOn: Binding(get: { model.swing }, set: { model.setSwing($0) }))
                     }
                 }
             }
