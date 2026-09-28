@@ -23,4 +23,4 @@ mkdir -p "${DEST:h}" && rm -rf "$DEST" && cp -R "$APP" "$DEST"
 mkdir -p "${CLI:h}" && ln -sf "$DEST/Contents/MacOS/msig" "$CLI"
 echo "Installed $DEST (CLI: $CLI)"
 
-[[ "${1:-}" == "--no-run" ]] || open -g "$DEST"
+[[ "${1:-}" == "--no-run" ]] || open -g "$DEST" --args --background

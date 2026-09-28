@@ -243,3 +243,65 @@ enum Store {
         return problem
     }
 }
+
+// MARK: actions shared by the menu, the window and the CLI
+
+extension Store {
+    /// Switches to a theme (nil = macOS default) and remembers it.
+    /// Returns a problem description if the theme didn't fully apply.
+    @discardableResult
+    static func use(_ id: String?) -> String? {
+        var s = state
+        s.theme = id
+        state = s
+        guard id != nil else {
+            Cursors.reset()
+            if let scale = s.scale { Cursors.scale = scale }
+            return nil
+        }
+        return applySaved()
+    }
+
+    /// 1 = normal, which also stops msig from managing the size.
+    static func setScale(_ value: Float) {
+        Cursors.scale = value
+        var s = state
+        s.scale = abs(value - 1) < 0.01 ? nil : value
+        state = s
+    }
+
+    static func remove(_ id: String) throws {
+        guard let url = url(for: id) else { return }
+        if state.theme == id { use(nil) }
+        try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+    }
+
+    static var savedDefaults: Theme? {
+        guard var t = try? Theme.loadCape(defaultsURL) else { return nil }
+        t.id = ""
+        t.name = "macOS Default"
+        return t
+    }
+}
+
+extension Cursors {
+    /// "com.apple.cursor.13" → "Pointing".
+    static func displayName(_ ident: String) -> String {
+        guard let key = names.first(where: { $0.value == ident })?.key else {
+            return ident.components(separatedBy: ".").last ?? ident
+        }
+        return key.split(separator: "-").map { word -> String in
+            if word == "ibeam" { return "I-Beam" }
+            if word.count <= 2, word.allSatisfy({ "nesw".contains($0) }) { return word.uppercased() }  // compass
+            return word.prefix(1).uppercased() + word.dropFirst()
+        }.joined(separator: " ")
+    }
+
+    /// Most-seen cursors first, the rest alphabetically.
+    static func sortOrder(_ a: String, _ b: String) -> Bool {
+        let first = ["arrow", "ibeam", "pointing", "wait", "busy", "open-hand", "closed-hand", "move",
+                     "context-arrow", "link", "forbidden", "copy-drag", "crosshair"].compactMap { names[$0] }
+        let ia = first.firstIndex(of: a) ?? .max, ib = first.firstIndex(of: b) ?? .max
+        return ia != ib ? ia < ib : displayName(a) < displayName(b)
+    }
+}

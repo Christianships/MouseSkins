@@ -4,6 +4,7 @@ import ServiceManagement
 // One binary, two faces: with arguments it's the `msig` CLI, without it's the
 // menu bar app. (`-psn_…` is what old launch paths append; ignore it.)
 let cliArgs = CommandLine.arguments.dropFirst().filter { !$0.hasPrefix("-psn_") && $0 != "--background" }
+let launchedInBackground = CommandLine.arguments.contains("--background")
 if !cliArgs.isEmpty { exit(CLI.run(Array(cliArgs))) }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
@@ -31,7 +32,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         NotificationCenter.default.addObserver(self, selector: #selector(scheduleReapply),
                                                name: NSApplication.didChangeScreenParametersNotification, object: nil)
+
+        // Opened by hand → show the window; at login → stay in the menu bar.
+        if !launchedInBackground && !launchedAsLoginItem { MainWindow.show() }
     }
+
+    private var launchedAsLoginItem: Bool {
+        guard let event = NSAppleEventManager.shared().currentAppleEvent,
+              event.eventID == kAEOpenApplication else { return false }
+        return event.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
+    }
+
+    // Opening msig again (Finder, Raycast, `open -a msig`) brings the window up.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        MainWindow.show()
+        return false
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    @objc private func showWindow() { MainWindow.show() }
 
     @objc private func scheduleReapply() {
         pendingReapply?.cancel()
@@ -46,9 +66,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.removeAllItems()
         let state = Store.state
 
-        let header = NSMenuItem(title: "msig", action: nil, keyEquivalent: "")
-        header.isEnabled = false
-        menu.addItem(header)
+        menu.addItem(item("Open msig…", #selector(showWindow)))
+        menu.addItem(.separator())
 
         let def = item("macOS Default", #selector(resetCursors))
         def.state = state.theme == nil ? .on : .off
@@ -101,25 +120,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func applyTheme(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? String else { return }
-        var s = Store.state
-        s.theme = id
-        Store.state = s
-        if let problem = Store.applySaved() { alert("Couldn't apply \(id)", problem) }
+        if let problem = Store.use(id) { alert("Couldn't apply \(id)", problem) }
     }
 
     @objc private func resetCursors() {
-        Cursors.reset()
-        var s = Store.state
-        s.theme = nil
-        Store.state = s
+        Store.use(nil)
     }
 
     @objc private func setSize(_ sender: NSMenuItem) {
         guard let v = sender.representedObject as? Float else { return }
-        Cursors.scale = v
-        var s = Store.state
-        s.scale = v == 1 ? nil : v      // Normal = stop managing the size
-        Store.state = s
+        Store.setScale(v)
     }
 
     @objc private func importTheme() {
