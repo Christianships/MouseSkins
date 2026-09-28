@@ -1,8 +1,8 @@
 # MouseSkins
 
-Custom cursor themes for macOS: a menu bar app and CLI in one binary. It's a
-small, self-built stand-in for [Mousecape](https://github.com/alexzielenski/Mousecape)
-and reads Mousecape `.cape` files directly.
+Custom cursor themes for macOS: a menu bar app and CLI in one binary. It applies
+cursor skins system-wide, reads `.cape` cursor theme files, and downloads new skins
+from GitHub.
 
 ```sh
 ./build.sh            # build, install to ~/Applications, link ~/.local/bin/mouseskins, launch
@@ -16,7 +16,7 @@ mouseskins get Bibata       # download one into the library
 ```
 
 Opening the app (or choosing Show Panel from the menu bar icon) brings up a floating
-panel in the middle of the screen, like Spotlight. It has three tabs:
+panel in the middle of the screen, like Spotlight. It has four tabs:
 
 - **Home**: a strip of your themes (double-click to apply). The selected theme shows
   Applied/Animated badges and its cursors grouped by role (Normal Select, Text Select,
@@ -26,7 +26,7 @@ panel in the middle of the screen, like Spotlight. It has three tabs:
   mac-cursors, GinoXiscatti's collection, Bibata, Posy, Breeze and more; about 75 in
   all). Search, filter by source, **Get** or **Get & Apply**. The **+** button adds any
   GitHub repo with `.cape` files as a source, and the globe menu links to more places
-  to look (GitHub's #mousecape topic, RW Designer plus capeify for Windows cursor packs).
+  to look (GitHub topic and code searches, RW Designer plus capeify for Windows cursor packs).
   Lists are cached for a day, since anonymous GitHub API calls are limited to 60 an hour.
 - **Edit**: pick a group, drag the red dot on the preview (or use the X/Y sliders or
   Center) to set the hotspot, change the frame time of an animated cursor, or replace
@@ -53,7 +53,7 @@ displays change, since WindowServer drops cursor registrations in some of those 
 
 Themes live in `~/Library/Application Support/MouseSkins/themes/`, in either format:
 
-**Mousecape `.cape`**: drop the file in, or run `mouseskins import file.cape`.
+**`.cape` file**: drop the file in, or run `mouseskins import file.cape`.
 
 **Folder**: `MyTheme/theme.json` next to PNGs:
 
@@ -76,7 +76,7 @@ Themes live in `~/Library/Application Support/MouseSkins/themes/`, in either for
 
 ## How it works
 
-It uses the same private CoreGraphics calls as Mousecape: `CGSRegisterCursorWithImages`
+It uses private CoreGraphics calls: `CGSRegisterCursorWithImages`
 replaces a named system cursor for the whole login session (see `Sources/CGSPrivate.h`).
 Since macOS 26, the pointer is also drawn from `ArrowS` / `IBeamS`, so Arrow and IBeam
 get registered under every matching system name.
@@ -85,4 +85,4 @@ The stock Arrow and IBeam only exist inside WindowServer, and once a theme repla
 them they can't be read back until you log out. The first time MouseSkins runs in a session
 that nothing has themed yet, it saves them to
 `~/Library/Application Support/MouseSkins/macos-default.cape`, and `reset` restores from that
-file. It skips the save while Mousecape is running, so don't run both.
+file. It skips the save while another cursor app is running, so don't run two at once.
