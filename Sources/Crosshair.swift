@@ -1,11 +1,13 @@
 import CoreGraphics
 
-/// A thin Minecraft-style "+" centred on the hotspot pixel of the Normal and
-/// Link Select cursors, so it's clear exactly where a click lands. White with
-/// a dark outline, since a cursor can't invert what's under it like the game does.
+/// A thin Minecraft-style "+" on the hotspot of the Normal and Link Select
+/// cursors, so it's clear exactly where a click lands. Like the game's: no
+/// outline, one pixel thick. A cursor can't invert what's under it the way
+/// the game does, so it's a light gray that reads on most backgrounds.
 enum Crosshair {
-    static let arm: CGFloat = 4             // points from the centre pixel to each tip
-    static let pad = arm + 1                // plus the outline
+    static let arm: CGFloat = 6             // points from the hotspot to each tip
+    static let thickness: CGFloat = 0.5     // one pixel on a Retina display
+    static let pad = arm + 1
 
     /// Normal Select + Link Select, plus the aliases macOS 26 draws the pointer from.
     static var targets: Set<String> {
@@ -46,22 +48,16 @@ enum Crosshair {
     }
 
     /// Just the plus, `2·pad + 1` points square at `k` pixels per point; the
-    /// hotspot pixel is the one at (pad, pad) from the top-left.
+    /// hotspot is at (pad, pad) from the top-left.
     static func image(k: CGFloat) -> CGImage? {
         let side = Int((pad * 2 + 1) * k)
         guard let ctx = context(side, side) else { return nil }
-        let px = 1 / k                                      // outline: one device pixel, but at least half a point
-        let edge = max(px, 0.5)
-        func bars(_ grow: CGFloat) -> [CGRect] {
-            // Top-left-origin points → CG pixels.
-            let r = [CGRect(x: pad - grow, y: pad - arm - grow, width: 1 + grow * 2, height: arm * 2 + 1 + grow * 2),
-                     CGRect(x: pad - arm - grow, y: pad - grow, width: arm * 2 + 1 + grow * 2, height: 1 + grow * 2)]
-            return r.map { CGRect(x: $0.minX * k, y: CGFloat(side) - $0.maxY * k, width: $0.width * k, height: $0.height * k) }
-        }
-        ctx.setFillColor(CGColor(gray: 0, alpha: 0.75))
-        ctx.fill(bars(edge))
-        ctx.setFillColor(CGColor(gray: 1, alpha: 1))
-        ctx.fill(bars(0))
+        let t = max(thickness, 1 / k)                       // never thinner than a device pixel
+        let bars = [CGRect(x: pad, y: pad - arm, width: t, height: arm * 2 + t),
+                    CGRect(x: pad - arm, y: pad, width: arm * 2 + t, height: t)]
+        // Top-left-origin points → CG pixels.
+        ctx.setFillColor(CGColor(gray: 0.78, alpha: 0.95))
+        ctx.fill(bars.map { CGRect(x: $0.minX * k, y: CGFloat(side) - $0.maxY * k, width: $0.width * k, height: $0.height * k) })
         return ctx.makeImage()
     }
 
