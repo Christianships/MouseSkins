@@ -16,6 +16,7 @@ swiftc -O -swift-version 5 -target arm64-apple-macos13.0 \
   -o "$APP/Contents/MacOS/msig" Sources/*.swift
 
 cp Info.plist "$APP/Contents/"
+mkdir -p "$APP/Contents/Resources" && cp Icon/AppIcon.icns "$APP/Contents/Resources/"   # redraw: see Icon/make-icon.swift
 codesign --force --sign - --identifier dev.christianaguilar.msig "$APP"
 
 pkill -x msig 2>/dev/null && sleep 0.5 || true
