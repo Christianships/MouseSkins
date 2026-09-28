@@ -1,6 +1,7 @@
 // Renders the cursor half of docs/demo.gif from a real .cape skin.
 // Usage: swiftc -O docs/make-demo.swift -o /tmp/make-demo && /tmp/make-demo <skin.cape> <out-dir>
 // then add panel screenshots (`MouseSkins --panel --tab Home`, etc.) and assemble with ffmpeg.
+import AppKit
 
 let capeURL = URL(fileURLWithPath: CommandLine.arguments[1])
 let outDir = CommandLine.arguments[2]
