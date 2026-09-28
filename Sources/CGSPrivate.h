@@ -1,6 +1,6 @@
-// Private CoreGraphics (WindowServer) cursor calls. Undocumented, but stable for
-// over a decade: Mousecape has shipped on them since 10.9 and still does on Tahoe.
-// Signatures from Mousecape's CGSInternal/CGSCursor.h.
+// Private CoreGraphics (WindowServer) cursor calls. Undocumented, but stable
+// since OS X 10.9 and still working on macOS 26 Tahoe. Signatures follow the
+// community CGSInternal headers (CGSCursor.h).
 #include <CoreGraphics/CoreGraphics.h>
 #include <stdbool.h>
 

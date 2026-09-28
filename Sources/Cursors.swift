@@ -35,7 +35,7 @@ enum Cursors {
     static let marker = "dev.mouseskins.applied"
     static let legacyMarker = "dev.msig.applied"    // same thing, from before the rename
 
-    /// Friendly names for theme.json keys, following Mousecape's labels.
+    /// Friendly names for theme.json keys.
     static let names: [String: String] = [
         "arrow": "com.apple.coregraphics.Arrow",
         "ibeam": "com.apple.coregraphics.IBeam",
@@ -119,15 +119,18 @@ enum Cursors {
     /// overrides them there's no way to ask for the originals back until logout,
     /// and they can't be unregistered either. So MouseSkins saves them to disk once,
     /// from a session nothing has themed yet, and reset re-registers that copy.
+    /// Bundle ID fragments of other apps that re-theme cursors.
+    private static let otherCursorApps = ["mousecape"]
+
     static var hasSavedDefaults: Bool { FileManager.default.fileExists(atPath: Store.defaultsURL.path) }
 
-    /// Returns true if it saved them. Skips when a theme (MouseSkins' marker, or a
-    /// running Mousecape helper) may already have replaced them this session.
+    /// Returns true if it saved them. Skips when a theme (MouseSkins' marker, or
+    /// another cursor app running) may already have replaced them this session.
     @discardableResult
     static func captureDefaultsIfClean() -> Bool {
         guard !hasSavedDefaults, !isRegistered(marker), !isRegistered(legacyMarker),
-              !NSWorkspace.shared.runningApplications.contains(where: {
-                  $0.bundleIdentifier?.lowercased().contains("mousecape") == true })
+              !NSWorkspace.shared.runningApplications.contains(where: { app in
+                  otherCursorApps.contains { app.bundleIdentifier?.lowercased().contains($0) == true } })
         else { return false }
         var found: [String: Cursor] = [:]
         for ident in coreGraphics { found[ident] = copyRegistered(ident) }

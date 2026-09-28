@@ -1,7 +1,6 @@
 import CoreGraphics
 
-/// Cursors grouped by what they're for, with Windows-style role names (the way
-/// Mousecape presents them). A theme usually draws one image per group, so the
+/// Cursors grouped by what they're for, with Windows-style role names. A theme usually draws one image per group, so the
 /// editor edits a group at once.
 struct CursorGroup: Identifiable {
     let name: String

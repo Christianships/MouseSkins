@@ -1,7 +1,7 @@
 import AppKit
 import ImageIO
 
-/// A cursor theme, loaded from either a Mousecape `.cape` file or a MouseSkins
+/// A cursor theme, loaded from either a `.cape` file or a MouseSkins
 /// theme folder (a `theme.json` next to PNGs).
 struct Theme {
     var id: String          // file or folder name without extension; what `mouseskins apply` takes
@@ -27,7 +27,7 @@ struct Theme {
         url.pathExtension == "cape" ? try loadCape(url) : try loadFolder(url)
     }
 
-    // MARK: .cape (Mousecape plist)
+    // MARK: .cape (plist)
 
     static func loadCape(_ url: URL) throws -> Theme {
         guard let data = try? Data(contentsOf: url),
@@ -113,7 +113,7 @@ struct Theme {
         return Cursors.names[slug]
     }
 
-    /// Writes cursors as a Mousecape-compatible .cape (used for the saved defaults,
+    /// Writes cursors as a .cape (used for the saved defaults,
     /// and loadable anywhere a .cape is).
     static func writeCape(_ cursors: [String: Cursor], name: String, author: String = "macOS",
                           identifier: String? = nil, to url: URL) throws {
@@ -159,7 +159,7 @@ struct Theme {
     }
 
     /// Decodes and redraws into sRGB RGBA; WindowServer mis-renders cursors
-    /// in other colour spaces (Mousecape retags for the same reason).
+    /// in other colour spaces.
     private static func cgImage(_ data: Data) -> CGImage? {
         guard let src = CGImageSourceCreateWithData(data as CFData, nil),
               let img = CGImageSourceCreateImageAtIndex(src, 0, nil),

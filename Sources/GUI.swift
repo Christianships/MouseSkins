@@ -105,7 +105,7 @@ final class LibraryModel: ObservableObject {
     func importThemes() {
         let panel = NSOpenPanel()
         panel.title = "Import cursor theme"
-        panel.message = "Choose Mousecape .cape files or folders containing theme.json"
+        panel.message = "Choose .cape files or folders containing theme.json"
         panel.canChooseFiles = true
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = true
@@ -124,7 +124,7 @@ final class LibraryModel: ObservableObject {
         problem = failures.isEmpty ? nil : failures.joined(separator: "\n")
     }
 
-    /// Saves the selected theme as a Mousecape-compatible .cape anywhere.
+    /// Saves the selected theme as a .cape file anywhere.
     func export() {
         guard let theme = selected?.theme else { return }
         let panel = NSSavePanel()

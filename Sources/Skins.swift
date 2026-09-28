@@ -23,7 +23,7 @@ struct RemoteSkin: Identifiable, Codable, Hashable {
 }
 
 enum SkinCatalog {
-    /// Repos known to hold Mousecape capes. More can be added from the panel.
+    /// Repos known to hold .cape skins. More can be added from the panel.
     static let builtIn = [
         "Microtribute/mac-cursors",
         "GinoXiscatti/MacOS-Cursors-Collection",
@@ -40,7 +40,6 @@ enum SkinCatalog {
 
     /// Places to find more by hand (these aren't .cape repos, so they can't be listed).
     static let webLinks: [(title: String, url: String, note: String)] = [
-        ("GitHub · #mousecape", "https://github.com/topics/mousecape", "More cape repos; add any as a source"),
         ("GitHub · .cape search", "https://github.com/search?q=path%3A*.cape&type=code", "Every .cape file on GitHub"),
         ("RW Designer cursors", "https://www.rw-designer.com/cursor-library", "Windows cursors; convert with capeify"),
         ("capeify", "https://github.com/mmemoo/capeify", "Turns Windows cursor packs into .cape"),
