@@ -33,7 +33,11 @@ enum Swing {
     private static var follow: Timer?
     private static var generation = 0          // bumps per click; stale timers check it
     private static var configured: Int?         // sword the overlay is set up for
-    static let handoff: TimeInterval = 0.03     // pointer/overlay overlap, about two frames
+    /// The pointer and the resting sword overlap this long at each end of a
+    /// swing, so a late frame never leaves neither on screen.
+    static let lead: TimeInterval = 0.025
+    static let tail: TimeInterval = 0.05
+    private static var active = false           // sword showing in the overlay
     private static var hidden = false
     private static var showing = 0              // index into swords of the one on screen
     private static var grip = CGPoint.zero      // grip offset from the hotspot, in screen points
@@ -41,6 +45,7 @@ enum Swing {
     /// Rebuilds from the saved state; starts or stops the monitor.
     static func update() {
         configured = nil
+        if !active { window?.orderOut(nil) }    // re-shown on the next swing
         swords = []
         others = []
         let s = Store.state
@@ -90,9 +95,10 @@ enum Swing {
         generation += 1
         let gen = generation
         // A repeat tap only restarts the spin; rebuilding a visible overlay flickers.
-        if !win.isVisible || configured != showing {
+        if !active || configured != showing {
             configured = showing
             win.setContentSize(CGSize(width: reach * 2, height: reach * 2))
+            move()
             CATransaction.begin()
             CATransaction.setDisableActions(true)
             layer.removeAllAnimations()
@@ -110,41 +116,50 @@ enum Swing {
                 glint.repeatCount = .infinity
                 layer.add(glint, forKey: "glint")
             }
+            layer.isHidden = false
             CATransaction.commit()
-            move()
-            win.orderFrontRegardless()
+            if !win.isVisible { win.orderFrontRegardless() }
             follow?.invalidate()
             follow = Timer.scheduledTimer(withTimeInterval: 1.0 / 120, repeats: true) { _ in move() }
+            active = true
         }
 
+        // From rest, hold the resting pose (identical to the pointer) until the
+        // pointer is hidden, then swing. Mid-swing taps restart straight away.
+        let delay = hidden ? 0 : lead
         let spin = CAKeyframeAnimation(keyPath: "transform.rotation.z")
         spin.values = angles.map { $0 * .pi / 180 }
         spin.keyTimes = times
         spin.timingFunctions = [.init(name: .easeOut), .init(name: .easeIn), .init(name: .easeOut)]
         spin.duration = duration
+        spin.beginTime = layer.convertTime(CACurrentMediaTime(), from: nil) + delay
+        spin.fillMode = .backwards
         layer.add(spin, forKey: "swing")       // replaces a swing in progress
 
-        // Overlap rather than gap: the sword at rest looks exactly like the
-        // pointer, so hide the pointer only once the overlay has drawn, and at
-        // the end bring the pointer back before taking the overlay away.
         if !hidden {
-            DispatchQueue.main.asyncAfter(deadline: .now() + handoff) {
-                guard window?.isVisible == true, !hidden else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + lead) {
+                guard active, !hidden else { return }
                 CGDisplayHideCursor(CGMainDisplayID())
                 hidden = true
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay + duration) {
             guard gen == generation else { return }
             if hidden {
                 CGDisplayShowCursor(CGMainDisplayID())
                 hidden = false
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + handoff) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + tail) {
                 guard gen == generation else { return }
                 follow?.invalidate()
                 follow = nil
-                window?.orderOut(nil)
+                // The window stays up (transparent, click-through): putting a
+                // window back on screen is slower than showing a layer.
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                layer.isHidden = true
+                CATransaction.commit()
+                active = false
             }
         }
     }
@@ -171,6 +186,7 @@ enum Swing {
         view.wantsLayer = true
         layer.magnificationFilter = .nearest    // keep pixel art crisp
         layer.minificationFilter = .nearest
+        layer.isHidden = true
         view.layer?.addSublayer(layer)
         w.contentView = view
         window = w
