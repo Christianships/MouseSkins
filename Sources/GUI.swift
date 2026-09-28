@@ -209,53 +209,69 @@ final class FloatingPanel: NSPanel {
     }
 }
 
+/// The panel runs in its own short-lived process (`msig --panel`, started by
+/// the menu bar agent) and quits when it closes. SwiftUI's view tree, its
+/// caches and every theme's decoded images add ~20 MB that a long-running
+/// process never gives back, so the agent that sits in the menu bar all day
+/// never loads any of it.
 enum MsigPanel {
-    private static var panel: FloatingPanel?
-    private static let model = LibraryModel()
     static let size = NSSize(width: 600, height: 460)
+    private static var panel: FloatingPanel?
 
     static func show() {
-        if panel == nil {
-            let p = FloatingPanel(contentRect: NSRect(origin: .zero, size: size),
-                                  styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
-                                  backing: .buffered, defer: false)
-            p.titleVisibility = .hidden
-            p.titlebarAppearsTransparent = true
-            p.isMovableByWindowBackground = true
-            p.level = .floating
-            p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            p.isReleasedWhenClosed = false
-            p.hidesOnDeactivate = false
-            for b in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-                p.standardWindowButton(b)?.isHidden = true
-            }
-            let blur = NSVisualEffectView()
-            blur.material = .hudWindow
-            blur.blendingMode = .behindWindow
-            blur.state = .active
-            let host = NSHostingView(rootView: PanelView().environmentObject(model))
-            host.translatesAutoresizingMaskIntoConstraints = false
-            blur.addSubview(host)
-            NSLayoutConstraint.activate([
-                host.leadingAnchor.constraint(equalTo: blur.leadingAnchor),
-                host.trailingAnchor.constraint(equalTo: blur.trailingAnchor),
-                host.topAnchor.constraint(equalTo: blur.topAnchor),
-                host.bottomAnchor.constraint(equalTo: blur.bottomAnchor),
-            ])
-            p.contentView = blur
-            panel = p
+        let p = FloatingPanel(contentRect: NSRect(origin: .zero, size: size),
+                              styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
+                              backing: .buffered, defer: false)
+        p.titleVisibility = .hidden
+        p.titlebarAppearsTransparent = true
+        p.isMovableByWindowBackground = true
+        p.level = .floating
+        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        p.isReleasedWhenClosed = false
+        p.hidesOnDeactivate = false
+        for b in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+            p.standardWindowButton(b)?.isHidden = true
         }
-        guard let panel else { return }
-        if panel.isVisible { panel.close(); return }    // menu item / reopen toggles it
-        model.reload()
+        let blur = NSVisualEffectView()
+        blur.material = .hudWindow
+        blur.blendingMode = .behindWindow
+        blur.state = .active
+        let host = NSHostingView(rootView: PanelView().environmentObject(LibraryModel()))
+        host.translatesAutoresizingMaskIntoConstraints = false
+        blur.addSubview(host)
+        NSLayoutConstraint.activate([
+            host.leadingAnchor.constraint(equalTo: blur.leadingAnchor),
+            host.trailingAnchor.constraint(equalTo: blur.trailingAnchor),
+            host.topAnchor.constraint(equalTo: blur.topAnchor),
+            host.bottomAnchor.constraint(equalTo: blur.bottomAnchor),
+        ])
+        p.contentView = blur
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: p, queue: .main) { _ in
+            DispatchQueue.main.async { NSApp.terminate(nil) }
+        }
+        panel = p
+
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
         if let f = screen?.visibleFrame {
-            panel.setFrame(NSRect(x: f.midX - size.width / 2, y: f.midY - size.height / 2,
-                                  width: size.width, height: size.height), display: true)
+            p.setFrame(NSRect(x: f.midX - size.width / 2, y: f.midY - size.height / 2,
+                              width: size.width, height: size.height), display: true)
         }
         NSApp.activate(ignoringOtherApps: true)
-        panel.makeKeyAndOrderFront(nil)
+        p.makeKeyAndOrderFront(nil)
+    }
+}
+
+/// Starts and stops the panel process from the menu bar agent.
+enum PanelProcess {
+    private static var process: Process?
+
+    static func toggle() {
+        if let p = process, p.isRunning { p.terminate(); process = nil; return }
+        let p = Process()
+        p.executableURL = Bundle.main.executableURL
+        p.arguments = ["--panel"]
+        do { try p.run(); process = p } catch { NSSound.beep() }
     }
 }
 

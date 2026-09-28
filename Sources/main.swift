@@ -1,11 +1,21 @@
 import AppKit
 import ServiceManagement
 
-// One binary, two faces: with arguments it's the `msig` CLI, without it's the
-// menu bar app. (`-psn_…` is what old launch paths append; ignore it.)
-let cliArgs = CommandLine.arguments.dropFirst().filter { !$0.hasPrefix("-psn_") && $0 != "--background" }
+// One binary, three faces: with arguments it's the `msig` CLI; with --panel
+// it's the floating panel (its own process, see PanelProcess); otherwise it's
+// the menu bar agent. (`-psn_…` is what old launch paths append; ignore it.)
+let launchFlags: Set<String> = ["--background", "--panel"]
+let cliArgs = CommandLine.arguments.dropFirst().filter { !$0.hasPrefix("-psn_") && !launchFlags.contains($0) }
 let launchedInBackground = CommandLine.arguments.contains("--background")
 if !cliArgs.isEmpty { exit(CLI.run(Array(cliArgs))) }
+
+if CommandLine.arguments.contains("--panel") {
+    let app = NSApplication.shared
+    app.setActivationPolicy(.accessory)
+    DispatchQueue.main.async { MsigPanel.show() }
+    app.run()
+    exit(0)
+}
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -39,7 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                                name: NSApplication.didChangeScreenParametersNotification, object: nil)
 
         // Opened by hand → show the window; at login → stay in the menu bar.
-        if !launchedInBackground && !launchedAsLoginItem { MsigPanel.show() }
+        if !launchedInBackground && !launchedAsLoginItem { PanelProcess.toggle() }
     }
 
     private var launchedAsLoginItem: Bool {
@@ -50,13 +60,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // Opening msig again (Finder, Raycast, `open -a msig`) brings the window up.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        MsigPanel.show()
+        PanelProcess.toggle()
         return false
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
-    @objc private func showWindow() { MsigPanel.show() }
+    @objc private func showWindow() { PanelProcess.toggle() }
 
     @objc private func scheduleReapply() {
         pendingReapply?.cancel()
@@ -105,7 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(sizeItem)
 
         menu.addItem(.separator())
-        menu.addItem(item("Import .cape or Theme Folder…", #selector(importTheme)))
+        menu.addItem(item("Import…", #selector(showWindow)))
         menu.addItem(item("Open Themes Folder", #selector(openFolder)))
 
         menu.addItem(.separator())
@@ -135,23 +145,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func setSize(_ sender: NSMenuItem) {
         guard let v = sender.representedObject as? Float else { return }
         Store.setScale(v)
-    }
-
-    @objc private func importTheme() {
-        let panel = NSOpenPanel()
-        panel.title = "Import cursor theme"
-        panel.message = "Choose a Mousecape .cape file or a folder containing theme.json"
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = true
-        NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK else { return }
-        var failures: [String] = []
-        for url in panel.urls {
-            do { _ = try Store.importTheme(from: url) }
-            catch { failures.append("\(url.lastPathComponent): \(error.localizedDescription)") }
-        }
-        if !failures.isEmpty { alert("Some themes weren't imported", failures.joined(separator: "\n")) }
     }
 
     @objc private func openFolder() {
