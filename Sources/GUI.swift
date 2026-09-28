@@ -94,52 +94,118 @@ final class LibraryModel: ObservableObject {
     }
 }
 
-// MARK: window
+// MARK: panel
 
-enum MainWindow {
-    private static var window: NSWindow?
+/// A small HUD that floats in the middle of the screen the pointer is on,
+/// like Spotlight. Esc or clicking elsewhere dismisses it.
+final class FloatingPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override func cancelOperation(_ sender: Any?) { close() }
+    override func resignKey() {
+        super.resignKey()
+        // Stay open while our own open panel or alert is up.
+        if NSApp.modalWindow == nil { close() }
+    }
+}
+
+enum MsigPanel {
+    private static var panel: FloatingPanel?
     private static let model = LibraryModel()
+    static let size = NSSize(width: 440, height: 340)
 
     static func show() {
-        if window == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 560),
-                             styleMask: [.titled, .closable, .miniaturizable, .resizable],
-                             backing: .buffered, defer: false)
-            w.title = "msig"
-            w.minSize = NSSize(width: 640, height: 420)
-            w.isReleasedWhenClosed = false
-            w.contentView = NSHostingView(rootView: LibraryView().environmentObject(model))
-            w.center()
-            w.setFrameAutosaveName("msig.main")
-            // In the Dock and ⌘-Tab only while the window is open.
-            NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: w, queue: .main) { _ in
-                NSApp.setActivationPolicy(.accessory)
+        if panel == nil {
+            let p = FloatingPanel(contentRect: NSRect(origin: .zero, size: size),
+                                  styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
+                                  backing: .buffered, defer: false)
+            p.titleVisibility = .hidden
+            p.titlebarAppearsTransparent = true
+            p.isMovableByWindowBackground = true
+            p.level = .floating
+            p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            p.isReleasedWhenClosed = false
+            p.hidesOnDeactivate = false
+            for b in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+                p.standardWindowButton(b)?.isHidden = true
             }
-            window = w
+            let blur = NSVisualEffectView()
+            blur.material = .hudWindow
+            blur.blendingMode = .behindWindow
+            blur.state = .active
+            let host = NSHostingView(rootView: PanelView().environmentObject(model))
+            host.translatesAutoresizingMaskIntoConstraints = false
+            blur.addSubview(host)
+            NSLayoutConstraint.activate([
+                host.leadingAnchor.constraint(equalTo: blur.leadingAnchor),
+                host.trailingAnchor.constraint(equalTo: blur.trailingAnchor),
+                host.topAnchor.constraint(equalTo: blur.topAnchor),
+                host.bottomAnchor.constraint(equalTo: blur.bottomAnchor),
+            ])
+            p.contentView = blur
+            panel = p
         }
+        guard let panel else { return }
+        if panel.isVisible { panel.close(); return }    // menu item / reopen toggles it
         model.reload()
-        NSApp.setActivationPolicy(.regular)
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
+        if let f = screen?.visibleFrame {
+            panel.setFrame(NSRect(x: f.midX - size.width / 2, y: f.midY - size.height / 2,
+                                  width: size.width, height: size.height), display: true)
+        }
         NSApp.activate(ignoringOtherApps: true)
-        window?.makeKeyAndOrderFront(nil)
+        panel.makeKeyAndOrderFront(nil)
     }
 }
 
 // MARK: views
 
-struct LibraryView: View {
+struct PanelView: View {
     @EnvironmentObject var model: LibraryModel
     @State private var dropTargeted = false
+    private let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                sidebar.frame(width: 240)
-                Divider()
-                detail.frame(maxWidth: .infinity, maxHeight: .infinity)
+            HStack {
+                Image(systemName: "cursorarrow.rays")
+                Text("msig").font(.headline)
+                Spacer()
+                Button { NSWorkspace.shared.open(Store.themesDir) } label: { Image(systemName: "folder") }
+                    .buttonStyle(.borderless).help("Open themes folder")
+                Button { model.importThemes() } label: { Image(systemName: "plus") }
+                    .buttonStyle(.borderless).help("Import .cape or theme folder (or drop one here)")
             }
-            Divider()
-            footer
+            .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 10)
+
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 10) {
+                    ForEach(model.entries) { entry in
+                        ThemeTile(entry: entry, applied: model.applied == entry.id) { model.apply(entry.id) }
+                            .contextMenu {
+                                if !entry.id.isEmpty {
+                                    Button("Show in Finder") { model.reveal(entry.id) }
+                                    Button("Move to Trash", role: .destructive) { model.delete(entry.id) }
+                                }
+                            }
+                    }
+                }
+                .padding(.horizontal, 14).padding(.bottom, 10)
+            }
+
+            Divider().opacity(0.5)
+            HStack(spacing: 10) {
+                Image(systemName: "arrow.up.left.and.arrow.down.right").foregroundStyle(.secondary)
+                Slider(value: Binding(get: { model.scale }, set: { model.setScale($0) }), in: 1...4, step: 0.25)
+                Text(model.scale == 1 ? "1×" : String(format: "%.2g×", model.scale))
+                    .monospacedDigit().foregroundStyle(.secondary).frame(width: 36, alignment: .trailing)
+                Toggle("Login", isOn: Binding(get: { model.loginEnabled }, set: { model.setLogin($0) }))
+                    .toggleStyle(.switch).controlSize(.mini)
+                    .help("Open msig at login and re-apply your theme")
+            }
+            .padding(.horizontal, 16).padding(.vertical, 12)
         }
+        .ignoresSafeArea()      // the hidden title bar would otherwise leave a gap on top
         .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in
             for p in providers {
                 _ = p.loadObject(ofClass: URL.self) { url, _ in
@@ -150,7 +216,7 @@ struct LibraryView: View {
         }
         .overlay {
             if dropTargeted {
-                RoundedRectangle(cornerRadius: 10).strokeBorder(Color.accentColor, lineWidth: 3).padding(4)
+                RoundedRectangle(cornerRadius: 12).strokeBorder(Color.accentColor, lineWidth: 2).padding(3)
             }
         }
         .alert("msig", isPresented: Binding(get: { model.problem != nil }, set: { if !$0 { model.problem = nil } })) {
@@ -159,146 +225,50 @@ struct LibraryView: View {
             Text(model.problem ?? "")
         }
     }
-
-    private var sidebar: some View {
-        List(selection: $model.selection) {
-            Section("Themes") {
-                ForEach(model.entries) { entry in
-                    ThemeRow(entry: entry, applied: model.applied == entry.id)
-                        .tag(entry.id as String?)
-                        .contextMenu {
-                            Button("Apply") { model.apply(entry.id) }
-                            if !entry.id.isEmpty {
-                                Button("Show in Finder") { model.reveal(entry.id) }
-                                Divider()
-                                Button("Move to Trash", role: .destructive) { model.delete(entry.id) }
-                            }
-                        }
-                }
-            }
-        }
-        .listStyle(.sidebar)
-    }
-
-    @ViewBuilder private var detail: some View {
-        if let entry = model.entries.first(where: { $0.id == model.selection }) {
-            ThemeDetail(entry: entry, applied: model.applied == entry.id) { model.apply(entry.id) }
-        } else {
-            Text("Select a theme").foregroundStyle(.secondary)
-        }
-    }
-
-    private var footer: some View {
-        HStack(spacing: 14) {
-            Image(systemName: "cursorarrow").foregroundStyle(.secondary)
-            Slider(value: Binding(get: { model.scale }, set: { model.setScale($0) }), in: 1...4, step: 0.25)
-                .frame(width: 180)
-            Text(model.scale == 1 ? "Normal" : String(format: "%.2g×", model.scale))
-                .monospacedDigit().frame(width: 52, alignment: .leading)
-            Spacer()
-            Toggle("Open at login", isOn: Binding(get: { model.loginEnabled }, set: { model.setLogin($0) }))
-                .toggleStyle(.checkbox)
-            Button { NSWorkspace.shared.open(Store.themesDir) } label: { Image(systemName: "folder") }
-                .help("Open themes folder")
-            Button("Import…") { model.importThemes() }
-        }
-        .padding(.horizontal, 16).padding(.vertical, 10)
-    }
 }
 
-struct ThemeRow: View {
-    let entry: LibraryModel.Entry
-    let applied: Bool
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Group {
-                if let arrow = entry.theme?.cursors["com.apple.coregraphics.Arrow"] {
-                    CursorPreview(cursor: arrow, side: 26)
-                } else {
-                    Image(systemName: entry.error == nil ? "cursorarrow" : "exclamationmark.triangle")
-                        .font(.system(size: 16)).foregroundStyle(.secondary)
-                }
-            }
-            .frame(width: 30, height: 30)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(entry.id.isEmpty ? "macOS Default" : entry.theme?.name ?? entry.id).lineLimit(1)
-                if let author = entry.theme?.author, !entry.id.isEmpty {
-                    Text(author).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                }
-            }
-            Spacer(minLength: 0)
-            if applied {
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.accentColor)
-            }
-        }
-        .padding(.vertical, 2)
-    }
-}
-
-struct ThemeDetail: View {
+/// One theme: name plus a strip of its most-seen cursors. Click to apply.
+struct ThemeTile: View {
     let entry: LibraryModel.Entry
     let applied: Bool
     let apply: () -> Void
+    @State private var hovering = false
 
-    private let columns = [GridItem(.adaptive(minimum: 92), spacing: 12)]
+    private static let showcase = ["arrow", "ibeam", "pointing", "wait"].compactMap { Cursors.names[$0] }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 3) {
+        Button(action: apply) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
                     Text(entry.id.isEmpty ? "macOS Default" : entry.theme?.name ?? entry.id)
-                        .font(.title2.weight(.semibold))
-                    Text(subtitle).font(.callout).foregroundStyle(.secondary)
+                        .font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                    Spacer(minLength: 0)
+                    if applied { Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.accentColor) }
+                    if entry.error != nil { Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange) }
                 }
-                Spacer()
-                if applied {
-                    Label("Applied", systemImage: "checkmark").foregroundStyle(.secondary)
-                } else {
-                    Button("Apply", action: apply).keyboardShortcut(.defaultAction).controlSize(.large)
-                        .disabled(entry.error != nil)
-                }
-            }
-            .padding(20)
-            Divider()
-            content
-        }
-    }
-
-    private var subtitle: String {
-        if let error = entry.error { return error }
-        if entry.id.isEmpty, entry.theme == nil { return "The built-in cursors" }
-        let n = entry.theme?.cursors.count ?? 0
-        return [entry.theme?.author, "\(n) cursor\(n == 1 ? "" : "s")"].compactMap { $0 }.joined(separator: " · ")
-    }
-
-    @ViewBuilder private var content: some View {
-        if let theme = entry.theme {
-            ScrollView {
-                LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(theme.cursors.keys.sorted(by: Cursors.sortOrder), id: \.self) { ident in
-                        VStack(spacing: 6) {
-                            CursorPreview(cursor: theme.cursors[ident]!, side: 44)
-                                .frame(maxWidth: .infinity).frame(height: 64)
-                                .background(RoundedRectangle(cornerRadius: 8).fill(.quaternary.opacity(0.5)))
-                            Text(Cursors.displayName(ident)).font(.caption).lineLimit(1)
-                                .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    if let theme = entry.theme {
+                        ForEach(Self.showcase.filter { theme.cursors[$0] != nil }, id: \.self) { ident in
+                            CursorPreview(cursor: theme.cursors[ident]!, side: 28)
                         }
-                        .help(ident)
+                    } else {
+                        Image(systemName: "cursorarrow").font(.system(size: 20)).frame(height: 28)
                     }
+                    Spacer(minLength: 0)
                 }
-                .padding(20)
             }
-        } else if entry.id.isEmpty {
-            VStack(spacing: 8) {
-                Image(systemName: "cursorarrow").font(.system(size: 40)).foregroundStyle(.secondary)
-                Text("The stock cursors aren't saved yet. msig saves them the first time it runs in a fresh login session; until then, going back to them takes a logout.")
-                    .multilineTextAlignment(.center).foregroundStyle(.secondary).frame(maxWidth: 340)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            Spacer()
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 10)
+                .fill(Color.primary.opacity(applied ? 0.12 : hovering ? 0.08 : 0.04)))
+            .overlay(RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(applied ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 1.5))
+            .contentShape(RoundedRectangle(cornerRadius: 10))
         }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(entry.error ?? (entry.theme?.author ?? ""))
+        .disabled(entry.error != nil)
     }
 }
 

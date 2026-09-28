@@ -13,14 +13,22 @@ msig reset
 msig login on         # open the menu bar app at login (re-applies your theme)
 ```
 
-Opening the app shows the library window. The sidebar lists your themes; each theme
-page shows every cursor it replaces, with animated previews, plus an Apply button. At
-the bottom are cursor size, Open at login, and Import (you can also drag `.cape` files
-or theme folders onto the window). Right-click a theme to show it in Finder or trash it.
+Opening the app (or choosing Show Panel from the menu bar icon) brings up a small
+floating panel in the middle of the screen, like Spotlight. Click a theme tile to apply
+it. The slider sets cursor size, and the switch turns Open at login on or off. Use +
+to import, or drop `.cape` files and theme folders onto the panel. Right-click a tile
+to show it in Finder or trash it. Esc or clicking elsewhere closes the panel. When msig
+starts at login it stays in the menu bar and doesn't show the panel.
 
-The menu bar icon (cursor with rays) does the quick stuff: switch themes, set the size,
-and open the window. When msig starts at login it stays in the menu bar, and it only
-shows in the Dock while the window is open. The app re-applies the saved theme at login, on wake, and when
+If you use AeroSpace, float the panel so it isn't tiled:
+
+```toml
+[[on-window-detected]]
+    if.app-id = 'dev.christianaguilar.msig'
+    run = ['layout floating']
+```
+
+The app re-applies the saved theme at login, on wake, and when
 displays change, since WindowServer drops cursor registrations in some of those cases.
 
 ## Themes

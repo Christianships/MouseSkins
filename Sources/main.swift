@@ -34,7 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                                name: NSApplication.didChangeScreenParametersNotification, object: nil)
 
         // Opened by hand → show the window; at login → stay in the menu bar.
-        if !launchedInBackground && !launchedAsLoginItem { MainWindow.show() }
+        if !launchedInBackground && !launchedAsLoginItem { MsigPanel.show() }
     }
 
     private var launchedAsLoginItem: Bool {
@@ -45,13 +45,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // Opening msig again (Finder, Raycast, `open -a msig`) brings the window up.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        MainWindow.show()
+        MsigPanel.show()
         return false
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
-    @objc private func showWindow() { MainWindow.show() }
+    @objc private func showWindow() { MsigPanel.show() }
 
     @objc private func scheduleReapply() {
         pendingReapply?.cancel()
@@ -66,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.removeAllItems()
         let state = Store.state
 
-        menu.addItem(item("Open msig…", #selector(showWindow)))
+        menu.addItem(item("Show Panel", #selector(showWindow)))
         menu.addItem(.separator())
 
         let def = item("macOS Default", #selector(resetCursors))
