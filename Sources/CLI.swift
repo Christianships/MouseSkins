@@ -11,6 +11,8 @@ enum CLI {
       msig reset             back to the macOS cursors
       msig scale [size]      show or set cursor size (1 = normal, e.g. 1.5)
       msig import <path>     add a .cape file or theme folder to the library
+      msig skins [search]    list downloadable skins from GitHub
+      msig get <skin>        download a skin into the library (then `msig apply` it)
       msig names             cursor names usable as keys in theme.json
       msig dir               print the themes folder
       msig reapply           re-apply the saved theme (what the app does at login)
@@ -68,6 +70,25 @@ enum CLI {
                 print("imported \(try Store.importTheme(from: url)) — `msig apply` it")
             } catch { return fail(error.localizedDescription) }
 
+        case "skins":
+            let query = rest.joined(separator: " ")
+            let (skins, problems) = try! sync { await CLI.catalog() }   // catalog() never throws
+            for p in problems { FileHandle.standardError.write(("msig: " + p + "\n").data(using: .utf8)!) }
+            let installed = Set(Store.themeIDs())
+            for s in skins where query.isEmpty || s.name.localizedCaseInsensitiveContains(query) {
+                print((installed.contains(s.themeID) ? "* " : "  ") + s.name.padding(toLength: 34, withPad: " ", startingAt: 0) + s.repo)
+            }
+
+        case "get":
+            let query = rest.joined(separator: " ")
+            guard !query.isEmpty else { return fail("usage: msig get <skin name>") }
+            let (skins, _) = try! sync { await CLI.catalog() }
+            let matches = skins.filter { $0.name.caseInsensitiveCompare(query) == .orderedSame }
+            guard let skin = matches.first ?? skins.first(where: { $0.name.localizedCaseInsensitiveContains(query) })
+            else { return fail("no skin matching \"\(query)\" (see `msig skins`)") }
+            do { print("got \(try sync { try await SkinCatalog.install(skin) }) from \(skin.repo) — `msig apply` it") }
+            catch { return fail(error.localizedDescription) }
+
         case "names":
             for (name, ident) in Cursors.names.sorted(by: { $0.key < $1.key }) {
                 print(name.padding(toLength: 18, withPad: " ", startingAt: 0) + ident)
@@ -100,6 +121,25 @@ enum CLI {
             return fail("unknown command \"\(cmd)\"\n\n" + usage)
         }
         return 0
+    }
+
+    static func catalog() async -> ([RemoteSkin], [String]) {
+        var all: [RemoteSkin] = [], problems: [String] = []
+        for repo in SkinCatalog.sources {
+            do { all += try await SkinCatalog.list(repo) } catch { problems.append(error.localizedDescription) }
+        }
+        var seen = Set<String>()
+        return (all.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+                   .filter { seen.insert($0.sha).inserted }, problems)
+    }
+
+    /// Runs async work from the synchronous CLI.
+    private static func sync<T>(_ work: @escaping () async throws -> T) throws -> T {
+        var result: Result<T, Error>!
+        let done = DispatchSemaphore(value: 0)
+        Task.detached { do { result = .success(try await work()) } catch { result = .failure(error) }; done.signal() }
+        done.wait()
+        return try result.get()
     }
 
     private static func fail(_ msg: String) -> Int32 {

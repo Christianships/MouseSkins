@@ -9,7 +9,7 @@ import UniformTypeIdentifiers
 /// panel open); the applied theme and settings also follow CLI changes through
 /// the "dev.msig.changed" notification Store posts on every state write.
 final class LibraryModel: ObservableObject {
-    enum Tab: String, CaseIterable { case home = "Home", edit = "Edit", settings = "Settings" }
+    enum Tab: String, CaseIterable { case home = "Home", skins = "Skins", edit = "Edit", settings = "Settings" }
 
     struct Entry: Identifiable {
         let id: String              // "" = macOS Default
@@ -287,7 +287,7 @@ struct PanelView: View {
                 Picker("", selection: $model.tab) {
                     ForEach(LibraryModel.Tab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
-                .pickerStyle(.segmented).labelsHidden().frame(width: 240)
+                .pickerStyle(.segmented).labelsHidden().frame(width: 300)
                 Spacer()
                 toolbar
             }
@@ -296,6 +296,7 @@ struct PanelView: View {
             Group {
                 switch model.tab {
                 case .home: HomeView()
+                case .skins: SkinsView()
                 case .edit: EditView()
                 case .settings: SettingsView()
                 }
@@ -333,6 +334,8 @@ struct PanelView: View {
                 .disabled(model.selection.isEmpty)
             IconButton("checkmark", "Apply", tint: .green, filled: true) { model.apply(model.selection) }
                 .disabled(model.applied == model.selection || model.selected?.error != nil)
+        case .skins:
+            SkinsToolbar()
         case .edit:
             IconButton("arrow.uturn.backward", "Discard changes") { model.resetDraft() }
                 .disabled(!model.dirty)
@@ -495,6 +498,249 @@ struct ThemeTile: View {
             .strokeBorder(selected ? Color.green.opacity(0.8) : .clear, lineWidth: 2))
         .contentShape(RoundedRectangle(cornerRadius: 12))
         .help(entry.error ?? entry.theme?.author ?? "")
+    }
+}
+
+// MARK: skins
+
+@MainActor
+final class SkinsModel: ObservableObject {
+    static let shared = SkinsModel()    // the panel process is short-lived; one catalog per run
+
+    @Published var skins: [RemoteSkin] = []
+    @Published var loading = false
+    @Published var loaded = false
+    @Published var errors: [String] = []
+    @Published var query = ""
+    @Published var source = ""          // "" = all sources
+    @Published var installing: Set<String> = []
+    @Published var previews: [String: [Cursor]] = [:]
+    private var previewing: Set<String> = []
+
+    var filtered: [RemoteSkin] {
+        skins.filter { skin in
+            (source.isEmpty || skin.repo == source)
+                && (query.isEmpty || skin.name.localizedCaseInsensitiveContains(query)
+                    || skin.repo.localizedCaseInsensitiveContains(query))
+        }
+    }
+
+    func load(force: Bool = false) async {
+        guard !loading else { return }
+        loading = true
+        errors = []
+        var all: [RemoteSkin] = [], problems: [String] = []
+        await withTaskGroup(of: Result<[RemoteSkin], Error>.self) { group in
+            for repo in SkinCatalog.sources {
+                group.addTask { do { return .success(try await SkinCatalog.list(repo, force: force)) } catch { return .failure(error) } }
+            }
+            for await r in group {
+                switch r {
+                case .success(let list): all += list
+                case .failure(let e): problems.append(e.localizedDescription)
+                }
+            }
+        }
+        // Same file in two repos (forks, collections) → keep one.
+        var seen = Set<String>()
+        skins = all.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            .filter { seen.insert($0.sha).inserted }
+        errors = Array(Set(problems)).sorted()
+        loading = false
+        loaded = true
+    }
+
+    /// Downloads the cape (cached by hash) and keeps a few cursors to show.
+    func preview(_ skin: RemoteSkin) async {
+        guard previews[skin.id] == nil, previewing.insert(skin.id).inserted else { return }
+        defer { previewing.remove(skin.id) }
+        guard let url = try? await SkinCatalog.file(for: skin), let theme = try? Theme.loadCape(url) else {
+            previews[skin.id] = []
+            return
+        }
+        previews[skin.id] = ["arrow", "pointing", "ibeam", "wait"]
+            .compactMap { Cursors.names[$0].flatMap { theme.cursors[$0] } }
+    }
+
+    func install(_ skin: RemoteSkin, library: LibraryModel, apply: Bool) async {
+        installing.insert(skin.id)
+        defer { installing.remove(skin.id) }
+        do {
+            let id = try await SkinCatalog.install(skin)
+            library.reload()
+            if apply { library.apply(id) }
+        } catch {
+            library.problem = "\(skin.name): \(error.localizedDescription)"
+        }
+    }
+
+    func addSource(_ input: String) async -> String? {
+        guard let repo = SkinCatalog.normalize(input) else { return "Use owner/repo or a github.com link" }
+        if SkinCatalog.sources.contains(repo) { return "\(repo) is already a source" }
+        do {
+            let found = try await SkinCatalog.list(repo, force: true)
+            if found.isEmpty { return "No .cape files in \(repo)" }
+        } catch { return error.localizedDescription }
+        SkinCatalog.extraSources += [repo]
+        await load()
+        source = repo
+        return nil
+    }
+
+    func removeSource(_ repo: String) {
+        SkinCatalog.extraSources.removeAll { $0 == repo }
+        if source == repo { source = "" }
+        skins.removeAll { $0.repo == repo }
+    }
+}
+
+struct SkinsToolbar: View {
+    @ObservedObject private var skins = SkinsModel.shared
+    @State private var adding = false
+    @State private var input = ""
+    @State private var addError: String?
+
+    var body: some View {
+        IconButton("plus", "Add a GitHub repo as a source") { adding = true }
+            .popover(isPresented: $adding, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Add source").font(.headline)
+                    Text("A GitHub repo with .cape files").font(.caption).foregroundStyle(.secondary)
+                    TextField("owner/repo or github.com link", text: $input).frame(width: 260)
+                        .onSubmit(submit)
+                    if let addError { Text(addError).font(.caption).foregroundStyle(.red) }
+                    HStack { Spacer(); Button("Add", action: submit).keyboardShortcut(.defaultAction) }
+                }
+                .padding(14)
+            }
+        Menu {
+            ForEach(SkinCatalog.webLinks, id: \.url) { link in
+                Button("\(link.title) — \(link.note)") { NSWorkspace.shared.open(URL(string: link.url)!) }
+            }
+        } label: { Image(systemName: "globe") }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 30)
+            .help("Find more skins on the web")
+        IconButton("arrow.clockwise", "Refresh from GitHub") { Task { await skins.load(force: true) } }
+            .disabled(skins.loading)
+    }
+
+    private func submit() {
+        let text = input
+        Task {
+            addError = await skins.addSource(text)
+            if addError == nil { adding = false; input = "" }
+        }
+    }
+}
+
+struct SkinsView: View {
+    @EnvironmentObject var library: LibraryModel
+    @ObservedObject private var skins = SkinsModel.shared
+    private let columns = [GridItem(.adaptive(minimum: 170), spacing: 10)]
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    TextField("Search skins", text: $skins.query).textFieldStyle(.plain)
+                }
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.07)))
+                Picker("", selection: $skins.source) {
+                    Text("All sources").tag("")
+                    ForEach(SkinCatalog.sources, id: \.self) { Text($0).tag($0) }
+                }
+                .labelsHidden().frame(width: 190)
+            }
+            .padding(.horizontal, 16)
+
+            if skins.loading && skins.skins.isEmpty {
+                ProgressView("Looking on GitHub…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: 10) {
+                        ForEach(skins.filtered) { skin in card(skin) }
+                    }
+                    .padding(.horizontal, 16).padding(.bottom, 10)
+                    if skins.loaded && skins.filtered.isEmpty {
+                        Text(skins.query.isEmpty ? "Nothing here yet." : "No skins match “\(skins.query)”.")
+                            .foregroundStyle(.secondary).padding(30)
+                    }
+                }
+            }
+
+            HStack(spacing: 6) {
+                Text("\(skins.filtered.count) skins from \(skins.source.isEmpty ? "\(SkinCatalog.sources.count) GitHub repos" : skins.source)")
+                if !skins.source.isEmpty {
+                    Button { NSWorkspace.shared.open(URL(string: "https://github.com/\(skins.source)")!) } label: {
+                        Image(systemName: "arrow.up.right.square")
+                    }
+                    .buttonStyle(.borderless).help("Open on GitHub")
+                    if SkinCatalog.extraSources.contains(skins.source) {
+                        Button("Remove source") { skins.removeSource(skins.source) }.buttonStyle(.link)
+                    }
+                }
+                Spacer()
+                if let e = skins.errors.first {
+                    Label(e, systemImage: "exclamationmark.triangle").lineLimit(1).foregroundStyle(.orange)
+                        .help(skins.errors.joined(separator: "\n"))
+                }
+            }
+            .font(.caption).foregroundStyle(.secondary)
+            .padding(.horizontal, 16).padding(.bottom, 12)
+        }
+        .task { if !skins.loaded { await skins.load() } }
+    }
+
+    private func card(_ skin: RemoteSkin) -> some View {
+        let installed = library.entries.contains { $0.id == skin.themeID }
+        let applied = library.applied == skin.themeID
+        let busy = skins.installing.contains(skin.id)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                if let cursors = skins.previews[skin.id] {
+                    if cursors.isEmpty {
+                        Image(systemName: "questionmark.square.dashed").foregroundStyle(.secondary).frame(height: 28)
+                    }
+                    ForEach(Array(cursors.enumerated()), id: \.offset) { CursorPreview(cursor: $0.element, side: 28) }
+                } else {
+                    ProgressView().controlSize(.small).frame(height: 28)
+                }
+                Spacer(minLength: 0)
+            }
+            .task { await skins.preview(skin) }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(skin.name).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                Text(skin.repo.components(separatedBy: "/").first ?? skin.repo)
+                    .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+            }
+            HStack {
+                if applied {
+                    Label("Applied", systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(.green)
+                } else if installed {
+                    Button("Apply") { library.apply(skin.themeID) }.controlSize(.small)
+                } else {
+                    Button(busy ? "Getting…" : "Get") { Task { await skins.install(skin, library: library, apply: false) } }
+                        .controlSize(.small).disabled(busy)
+                    Button("Get & Apply") { Task { await skins.install(skin, library: library, apply: true) } }
+                        .controlSize(.small).disabled(busy)
+                }
+                Spacer()
+                if let size = skin.size {
+                    Text(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))
+                        .font(.system(size: 9)).foregroundStyle(.tertiary)
+                }
+            }
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.06)))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(applied ? Color.green.opacity(0.7) : .clear, lineWidth: 1.5))
+        .contextMenu {
+            Button("Open on GitHub") {
+                NSWorkspace.shared.open(URL(string: "https://github.com/\(skin.repo)/blob/HEAD/\(skin.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? skin.path)")!)
+            }
+        }
     }
 }
 

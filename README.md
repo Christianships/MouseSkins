@@ -11,6 +11,8 @@ msig apply Bibata
 msig scale 1.5
 msig reset
 msig login on         # open the menu bar app at login (re-applies your theme)
+msig skins bibata     # search downloadable skins
+msig get Bibata       # download one into the library
 ```
 
 Opening the app (or choosing Show Panel from the menu bar icon) brings up a floating
@@ -20,6 +22,12 @@ panel in the middle of the screen, like Spotlight. It has three tabs:
   Applied/Animated badges and its cursors grouped by role (Normal Select, Text Select,
   Vertical Resize…). The toolbar has import, export as `.cape`, trash, and apply. You
   can also drop `.cape` files or theme folders onto the panel.
+- **Skins**: browse and download `.cape` skins published on GitHub (Microtribute's
+  mac-cursors, GinoXiscatti's collection, Bibata, Posy, Breeze and more; about 75 in
+  all). Search, filter by source, **Get** or **Get & Apply**. The **+** button adds any
+  GitHub repo with `.cape` files as a source, and the globe menu links to more places
+  to look (GitHub's #mousecape topic, RW Designer plus capeify for Windows cursor packs).
+  Lists are cached for a day, since anonymous GitHub API calls are limited to 60 an hour.
 - **Edit**: pick a group, drag the red dot on the preview (or use the X/Y sliders or
   Center) to set the hotspot, change the frame time of an animated cursor, or replace
   the image. An edit applies to every cursor in the group. Save writes it back to the
