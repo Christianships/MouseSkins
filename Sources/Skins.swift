@@ -11,8 +11,13 @@ struct RemoteSkin: Identifiable, Codable, Hashable {
     let size: Int?
 
     var id: String { repo + "/" + path }
-    var name: String { ((path as NSString).lastPathComponent as NSString).deletingPathExtension }
-    var themeID: String { name }    // what Store.importTheme will call it
+    /// File name without extension; what Store.importTheme will call the theme.
+    var themeID: String { ((path as NSString).lastPathComponent as NSString).deletingPathExtension }
+
+    /// Display name: drops the ".UUID" some collections append to file names.
+    var name: String {
+        themeID.replacingOccurrences(of: #"\.[0-9A-Fa-f]{8}-[0-9A-Fa-f-]{27}$"#, with: "", options: .regularExpression)
+    }
 
     var rawURL: URL {
         let encoded = path.split(separator: "/").map {
@@ -121,7 +126,7 @@ enum SkinCatalog {
 
     /// Downloads (or reuses) the .cape and returns its local cached path.
     static func file(for skin: RemoteSkin) async throws -> URL {
-        let dest = fileCache.appendingPathComponent(skin.sha).appendingPathComponent(skin.name + ".cape")
+        let dest = fileCache.appendingPathComponent(skin.sha).appendingPathComponent(skin.themeID + ".cape")
         if FileManager.default.fileExists(atPath: dest.path) { return dest }
         let (tmp, response) = try await URLSession.shared.download(from: skin.rawURL)
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0

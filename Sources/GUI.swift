@@ -22,6 +22,7 @@ final class LibraryModel: ObservableObject {
     }
     @Published var entries: [Entry] = []
     @Published var selection: String = ""
+    private var didSelectInitially = false
     @Published var applied: String = ""
     @Published var problem: String?
 
@@ -52,7 +53,9 @@ final class LibraryModel: ObservableObject {
         }
         entries = list
         syncState()
-        if !list.contains(where: { $0.id == selection }) { selection = applied }
+        // Open on the applied theme; afterwards keep whatever the user picked.
+        if !didSelectInitially || !list.contains(where: { $0.id == selection }) { selection = applied }
+        didSelectInitially = true
         if !dirty { resetDraft() }
     }
 
@@ -544,7 +547,7 @@ final class SkinsModel: ObservableObject {
         // Same file in two repos (forks, collections) → keep one.
         var seen = Set<String>()
         skins = all.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-            .filter { seen.insert($0.sha).inserted }
+            .filter { seen.insert($0.sha).inserted && seen.insert($0.name.lowercased()).inserted }
         errors = Array(Set(problems)).sorted()
         loading = false
         loaded = true

@@ -130,7 +130,7 @@ enum CLI {
         }
         var seen = Set<String>()
         return (all.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-                   .filter { seen.insert($0.sha).inserted }, problems)
+                   .filter { seen.insert($0.sha).inserted && seen.insert($0.name.lowercased()).inserted }, problems)
     }
 
     /// Runs async work from the synchronous CLI.

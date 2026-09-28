@@ -4,18 +4,22 @@ import ServiceManagement
 // One binary, three faces: with arguments it's the `mouseskins` CLI; with --panel
 // it's the floating panel (its own process, see PanelProcess); otherwise it's
 // the menu bar agent. (`-psn_…` is what old launch paths append; ignore it.)
-let launchFlags: Set<String> = ["--background", "--panel"]
-let cliArgs = CommandLine.arguments.dropFirst().filter { !$0.hasPrefix("-psn_") && !launchFlags.contains($0) }
-let launchedInBackground = CommandLine.arguments.contains("--background")
-if !cliArgs.isEmpty { exit(CLI.run(Array(cliArgs))) }
-
-if CommandLine.arguments.contains("--panel") {
+let args = CommandLine.arguments
+if args.contains("--panel") {
+    // `--tab Skins` opens on a given tab (handy for scripts and screenshots).
+    if let i = args.firstIndex(of: "--tab"), i + 1 < args.count {
+        UserDefaults.standard.set(args[i + 1], forKey: "tab")
+    }
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory)
     DispatchQueue.main.async { MouseSkinsPanel.show() }
     app.run()
     exit(0)
 }
+
+let cliArgs = args.dropFirst().filter { !$0.hasPrefix("-psn_") && $0 != "--background" }
+let launchedInBackground = args.contains("--background")
+if !cliArgs.isEmpty { exit(CLI.run(Array(cliArgs))) }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
