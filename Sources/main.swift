@@ -1,7 +1,7 @@
 import AppKit
 import ServiceManagement
 
-// One binary, three faces: with arguments it's the `msig` CLI; with --panel
+// One binary, three faces: with arguments it's the `mouseskins` CLI; with --panel
 // it's the floating panel (its own process, see PanelProcess); otherwise it's
 // the menu bar agent. (`-psn_…` is what old launch paths append; ignore it.)
 let launchFlags: Set<String> = ["--background", "--panel"]
@@ -12,7 +12,7 @@ if !cliArgs.isEmpty { exit(CLI.run(Array(cliArgs))) }
 if CommandLine.arguments.contains("--panel") {
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory)
-    DispatchQueue.main.async { MsigPanel.show() }
+    DispatchQueue.main.async { MouseSkinsPanel.show() }
     app.run()
     exit(0)
 }
@@ -25,12 +25,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let sizes: [Float] = [1, 1.25, 1.5, 1.75, 2, 2.5, 3]
 
     func applicationDidFinishLaunching(_ note: Notification) {
-        statusItem.button?.image = NSImage(systemSymbolName: "cursorarrow.rays", accessibilityDescription: "msig")
+        statusItem.button?.image = NSImage(systemSymbolName: "cursorarrow.rays", accessibilityDescription: "MouseSkins")
         menu.delegate = self
         statusItem.menu = menu
         statusItem.isVisible = Store.state.hideMenuBar != true
         DistributedNotificationCenter.default().addObserver(
-            forName: .init("dev.msig.changed"), object: nil, queue: .main) { [weak self] _ in
+            forName: .init("dev.mouseskins.changed"), object: nil, queue: .main) { [weak self] _ in
             self?.statusItem.isVisible = Store.state.hideMenuBar != true
         }
 
@@ -58,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return event.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
     }
 
-    // Opening msig again (Finder, Raycast, `open -a msig`) brings the window up.
+    // Opening MouseSkins again (Finder, Raycast, `open -a MouseSkins`) brings the window up.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
         PanelProcess.toggle()
         return false
@@ -122,7 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let login = item("Open at Login", #selector(toggleLogin))
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(login)
-        menu.addItem(NSMenuItem(title: "Quit msig", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "Quit MouseSkins", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     }
 
     private func item(_ title: String, _ action: Selector) -> NSMenuItem {

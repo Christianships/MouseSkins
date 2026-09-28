@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 
 /// Everything the panel shows. Themes are reloaded on demand (import, delete,
 /// panel open); the applied theme and settings also follow CLI changes through
-/// the "dev.msig.changed" notification Store posts on every state write.
+/// the "dev.mouseskins.changed" notification Store posts on every state write.
 final class LibraryModel: ObservableObject {
     enum Tab: String, CaseIterable { case home = "Home", skins = "Skins", edit = "Edit", settings = "Settings" }
 
@@ -39,7 +39,7 @@ final class LibraryModel: ObservableObject {
     init() {
         reload()
         DistributedNotificationCenter.default().addObserver(
-            forName: .init("dev.msig.changed"), object: nil, queue: .main) { [weak self] _ in self?.syncState() }
+            forName: .init("dev.mouseskins.changed"), object: nil, queue: .main) { [weak self] _ in self?.syncState() }
     }
 
     var selected: Entry? { entries.first { $0.id == selection } }
@@ -209,12 +209,12 @@ final class FloatingPanel: NSPanel {
     }
 }
 
-/// The panel runs in its own short-lived process (`msig --panel`, started by
+/// The panel runs in its own short-lived process (`MouseSkins --panel`, started by
 /// the menu bar agent) and quits when it closes. SwiftUI's view tree, its
 /// caches and every theme's decoded images add ~20 MB that a long-running
 /// process never gives back, so the agent that sits in the menu bar all day
 /// never loads any of it.
-enum MsigPanel {
+enum MouseSkinsPanel {
     static let size = NSSize(width: 600, height: 460)
     private static var panel: FloatingPanel?
 
@@ -317,7 +317,7 @@ struct PanelView: View {
                 RoundedRectangle(cornerRadius: 12).strokeBorder(Color.accentColor, lineWidth: 2).padding(3)
             }
         }
-        .alert("msig", isPresented: Binding(get: { model.problem != nil }, set: { if !$0 { model.problem = nil } })) {
+        .alert("MouseSkins", isPresented: Binding(get: { model.problem != nil }, set: { if !$0 { model.problem = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(model.problem ?? "")
@@ -428,7 +428,7 @@ struct HomeView: View {
                         .font(.caption).foregroundStyle(.secondary)
                         .padding(.horizontal, 16).padding(.bottom, 12)
                 } else {
-                    Text(entry.error ?? "The stock cursors aren't saved yet. msig saves them the first time it runs in a fresh login session; until then, going back to them takes a logout.")
+                    Text(entry.error ?? "The stock cursors aren't saved yet. MouseSkins saves them the first time it runs in a fresh login session; until then, going back to them takes a logout.")
                         .font(.callout).foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, maxHeight: .infinity).padding(24)
                 }
@@ -888,11 +888,11 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 group("Startup") {
-                    row("Apply at login", "Opens msig at login and re-applies your theme") {
+                    row("Apply at login", "Opens MouseSkins at login and re-applies your theme") {
                         Toggle("", isOn: Binding(get: { model.loginEnabled }, set: { model.setLogin($0) }))
                     }
                     Divider().opacity(0.4)
-                    row("Show menu bar icon", "When hidden, open msig again to get this panel") {
+                    row("Show menu bar icon", "When hidden, open MouseSkins again to get this panel") {
                         Toggle("", isOn: Binding(get: { model.showMenuBar }, set: { model.setShowMenuBar($0) }))
                     }
                 }

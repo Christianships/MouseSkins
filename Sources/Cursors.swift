@@ -32,7 +32,8 @@ enum Cursors {
 
     /// Registered alongside every applied theme. WindowServer registrations
     /// last until logout, so this tells us the session is already themed.
-    static let marker = "dev.msig.applied"
+    static let marker = "dev.mouseskins.applied"
+    static let legacyMarker = "dev.msig.applied"    // same thing, from before the rename
 
     /// Friendly names for theme.json keys, following Mousecape's labels.
     static let names: [String: String] = [
@@ -116,15 +117,15 @@ enum Cursors {
 
     /// The stock Arrow/IBeam/etc. only exist inside WindowServer: once a theme
     /// overrides them there's no way to ask for the originals back until logout,
-    /// and they can't be unregistered either. So msig saves them to disk once,
+    /// and they can't be unregistered either. So MouseSkins saves them to disk once,
     /// from a session nothing has themed yet, and reset re-registers that copy.
     static var hasSavedDefaults: Bool { FileManager.default.fileExists(atPath: Store.defaultsURL.path) }
 
-    /// Returns true if it saved them. Skips when a theme (msig's marker, or a
+    /// Returns true if it saved them. Skips when a theme (MouseSkins' marker, or a
     /// running Mousecape helper) may already have replaced them this session.
     @discardableResult
     static func captureDefaultsIfClean() -> Bool {
-        guard !hasSavedDefaults, !isRegistered(marker),
+        guard !hasSavedDefaults, !isRegistered(marker), !isRegistered(legacyMarker),
               !NSWorkspace.shared.runningApplications.contains(where: {
                   $0.bundleIdentifier?.lowercased().contains("mousecape") == true })
         else { return false }

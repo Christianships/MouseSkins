@@ -1,18 +1,18 @@
-# msig
+# MouseSkins
 
 Custom cursor themes for macOS: a menu bar app and CLI in one binary. It's a
 small, self-built stand-in for [Mousecape](https://github.com/alexzielenski/Mousecape)
 and reads Mousecape `.cape` files directly.
 
 ```sh
-./build.sh            # build, install to ~/Applications, link ~/.local/bin/msig, launch
-msig import ~/Downloads/Bibata.cape
-msig apply Bibata
-msig scale 1.5
-msig reset
-msig login on         # open the menu bar app at login (re-applies your theme)
-msig skins bibata     # search downloadable skins
-msig get Bibata       # download one into the library
+./build.sh            # build, install to ~/Applications, link ~/.local/bin/mouseskins, launch
+mouseskins import ~/Downloads/Bibata.cape
+mouseskins apply Bibata
+mouseskins scale 1.5
+mouseskins reset
+mouseskins login on         # open the menu bar app at login (re-applies your theme)
+mouseskins skins bibata     # search downloadable skins
+mouseskins get Bibata       # download one into the library
 ```
 
 Opening the app (or choosing Show Panel from the menu bar icon) brings up a floating
@@ -35,14 +35,14 @@ panel in the middle of the screen, like Spotlight. It has three tabs:
 - **Settings**: apply at login, show/hide the menu bar icon, cursor scale (1–4×), and
   left-hand mode (mirrors pointer-style cursors).
 
-Esc or clicking elsewhere closes the panel, and it reopens on the tab you left. When msig
+Esc or clicking elsewhere closes the panel, and it reopens on the tab you left. When MouseSkins
 starts at login it stays in the menu bar and doesn't show the panel.
 
 If you use AeroSpace, float the panel so it isn't tiled:
 
 ```toml
 [[on-window-detected]]
-    if.app-id = 'dev.christianaguilar.msig'
+    if.app-id = 'dev.christianaguilar.mouseskins'
     run = ['layout floating']
 ```
 
@@ -51,9 +51,9 @@ displays change, since WindowServer drops cursor registrations in some of those 
 
 ## Themes
 
-Themes live in `~/Library/Application Support/msig/themes/`, in either format:
+Themes live in `~/Library/Application Support/MouseSkins/themes/`, in either format:
 
-**Mousecape `.cape`**: drop the file in, or run `msig import file.cape`.
+**Mousecape `.cape`**: drop the file in, or run `mouseskins import file.cape`.
 
 **Folder**: `MyTheme/theme.json` next to PNGs:
 
@@ -72,7 +72,7 @@ Themes live in `~/Library/Application Support/msig/themes/`, in either format:
 - An image defaults to `<key>.png`. A matching `@2x.png` is used for Retina if present.
 - Size is in points and defaults to the 1x image size (per frame).
 - An animated cursor stacks its frames top to bottom in one image (max 24 frames).
-- Keys are friendly names (`msig names` lists them) or full `com.apple.…` identifiers.
+- Keys are friendly names (`mouseskins names` lists them) or full `com.apple.…` identifiers.
 
 ## How it works
 
@@ -82,7 +82,7 @@ Since macOS 26, the pointer is also drawn from `ArrowS` / `IBeamS`, so Arrow and
 get registered under every matching system name.
 
 The stock Arrow and IBeam only exist inside WindowServer, and once a theme replaces
-them they can't be read back until you log out. The first time msig runs in a session
+them they can't be read back until you log out. The first time MouseSkins runs in a session
 that nothing has themed yet, it saves them to
-`~/Library/Application Support/msig/macos-default.cape`, and `reset` restores from that
+`~/Library/Application Support/MouseSkins/macos-default.cape`, and `reset` restores from that
 file. It skips the save while Mousecape is running, so don't run both.

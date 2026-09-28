@@ -49,7 +49,7 @@ enum SkinCatalog {
     static let sourcesURL = Store.root.appendingPathComponent("sources.json")
     private static let listCacheURL = Store.root.appendingPathComponent("skins-cache.json")
     static let fileCache = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("msig/skins")
+        .appendingPathComponent("MouseSkins/skins")
 
     static var extraSources: [String] {
         get { (try? JSONDecoder().decode([String].self, from: Data(contentsOf: sourcesURL))) ?? [] }

@@ -2,10 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key><string>msig</string>
-    <key>CFBundleDisplayName</key><string>msig</string>
-    <key>CFBundleIdentifier</key><string>dev.christianaguilar.msig</string>
-    <key>CFBundleExecutable</key><string>msig</string>
+    <key>CFBundleName</key><string>MouseSkins</string>
+    <key>CFBundleDisplayName</key><string>MouseSkins</string>
+    <key>CFBundleIdentifier</key><string>dev.christianaguilar.mouseskins</string>
+    <key>CFBundleExecutable</key><string>MouseSkins</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>1.0</string>

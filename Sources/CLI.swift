@@ -1,22 +1,22 @@
 import Foundation
 import ServiceManagement
 
-/// `msig <command>`: the same binary as the menu bar app, run with arguments.
+/// `mouseskins <command>`: the same binary as the menu bar app, run with arguments.
 enum CLI {
     static let usage = """
-    msig — custom cursor themes for macOS
+    MouseSkins — custom cursor themes for macOS
 
-      msig list              themes in the library (* = applied)
-      msig apply <theme>     apply a theme and remember it
-      msig reset             back to the macOS cursors
-      msig scale [size]      show or set cursor size (1 = normal, e.g. 1.5)
-      msig import <path>     add a .cape file or theme folder to the library
-      msig skins [search]    list downloadable skins from GitHub
-      msig get <skin>        download a skin into the library (then `msig apply` it)
-      msig names             cursor names usable as keys in theme.json
-      msig dir               print the themes folder
-      msig reapply           re-apply the saved theme (what the app does at login)
-      msig login [on|off]    open the menu bar app at login (re-applies your theme)
+      mouseskins list                themes in the library (* = applied)
+      mouseskins apply <theme>       apply a theme and remember it
+      mouseskins reset               back to the macOS cursors
+      mouseskins scale [size]        show or set cursor size (1 = normal, e.g. 1.5)
+      mouseskins import <path>       add a .cape file or theme folder to the library
+      mouseskins skins [search]      list downloadable skins from GitHub
+      mouseskins get <skin>          download a skin into the library (then `mouseskins apply` it)
+      mouseskins names               cursor names usable as keys in theme.json
+      mouseskins dir                 print the themes folder
+      mouseskins reapply             re-apply the saved theme (what the app does at login)
+      mouseskins login [on|off]      open the menu bar app at login (re-applies your theme)
 
     Themes: \(Store.themesDir.path)
     """
@@ -28,11 +28,11 @@ enum CLI {
         case "list", "ls":
             let current = Store.state.theme
             let ids = Store.themeIDs()
-            if ids.isEmpty { print("no themes yet — `msig import <file.cape>`") }
+            if ids.isEmpty { print("no themes yet — `mouseskins import <file.cape>`") }
             for id in ids { print(id == current ? "* \(id)" : "  \(id)") }
 
         case "apply":
-            guard let id = rest.first else { return fail("usage: msig apply <theme>") }
+            guard let id = rest.first else { return fail("usage: mouseskins apply <theme>") }
             do {
                 let theme = try Store.theme(id)
                 let failed = Cursors.apply(theme)
@@ -64,16 +64,16 @@ enum CLI {
             print(String(format: "cursor size %.2f", v))
 
         case "import", "add":
-            guard let path = rest.first else { return fail("usage: msig import <file.cape | folder>") }
+            guard let path = rest.first else { return fail("usage: mouseskins import <file.cape | folder>") }
             do {
                 let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
-                print("imported \(try Store.importTheme(from: url)) — `msig apply` it")
+                print("imported \(try Store.importTheme(from: url)) — `mouseskins apply` it")
             } catch { return fail(error.localizedDescription) }
 
         case "skins":
             let query = rest.joined(separator: " ")
             let (skins, problems) = try! sync { await CLI.catalog() }   // catalog() never throws
-            for p in problems { FileHandle.standardError.write(("msig: " + p + "\n").data(using: .utf8)!) }
+            for p in problems { FileHandle.standardError.write(("mouseskins: " + p + "\n").data(using: .utf8)!) }
             let installed = Set(Store.themeIDs())
             for s in skins where query.isEmpty || s.name.localizedCaseInsensitiveContains(query) {
                 print((installed.contains(s.themeID) ? "* " : "  ") + s.name.padding(toLength: 34, withPad: " ", startingAt: 0) + s.repo)
@@ -81,12 +81,12 @@ enum CLI {
 
         case "get":
             let query = rest.joined(separator: " ")
-            guard !query.isEmpty else { return fail("usage: msig get <skin name>") }
+            guard !query.isEmpty else { return fail("usage: mouseskins get <skin name>") }
             let (skins, _) = try! sync { await CLI.catalog() }
             let matches = skins.filter { $0.name.caseInsensitiveCompare(query) == .orderedSame }
             guard let skin = matches.first ?? skins.first(where: { $0.name.localizedCaseInsensitiveContains(query) })
-            else { return fail("no skin matching \"\(query)\" (see `msig skins`)") }
-            do { print("got \(try sync { try await SkinCatalog.install(skin) }) from \(skin.repo) — `msig apply` it") }
+            else { return fail("no skin matching \"\(query)\" (see `mouseskins skins`)") }
+            do { print("got \(try sync { try await SkinCatalog.install(skin) }) from \(skin.repo) — `mouseskins apply` it") }
             catch { return fail(error.localizedDescription) }
 
         case "names":
@@ -108,7 +108,7 @@ enum CLI {
                 case "on": try svc.register()
                 case "off": try svc.unregister()
                 case nil: break
-                default: return fail("usage: msig login [on|off]")
+                default: return fail("usage: mouseskins login [on|off]")
                 }
             } catch { return fail(error.localizedDescription) }
             print("open at login: " + (svc.status == .enabled ? "on" : svc.status == .requiresApproval
@@ -143,7 +143,7 @@ enum CLI {
     }
 
     private static func fail(_ msg: String) -> Int32 {
-        FileHandle.standardError.write(("msig: " + msg + "\n").data(using: .utf8)!)
+        FileHandle.standardError.write(("mouseskins: " + msg + "\n").data(using: .utf8)!)
         return 1
     }
 }

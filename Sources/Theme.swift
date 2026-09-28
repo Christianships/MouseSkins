@@ -1,10 +1,10 @@
 import AppKit
 import ImageIO
 
-/// A cursor theme, loaded from either a Mousecape `.cape` file or an msig
+/// A cursor theme, loaded from either a Mousecape `.cape` file or a MouseSkins
 /// theme folder (a `theme.json` next to PNGs).
 struct Theme {
-    var id: String          // file or folder name without extension; what `msig apply` takes
+    var id: String          // file or folder name without extension; what `mouseskins apply` takes
     var name: String
     var author: String?
     var cursors: [String: Cursor]   // keyed by full identifier (com.apple.…)
@@ -77,7 +77,7 @@ struct Theme {
         var cursors: [String: Cursor] = [:]
         for (key, e) in manifest.cursors {
             guard let ident = identifier(for: key) else {
-                throw LoadError.badCursor(key, "unknown cursor name (see `msig names`)")
+                throw LoadError.badCursor(key, "unknown cursor name (see `mouseskins names`)")
             }
             let base = (e.image ?? "\(key).png") as NSString
             let file1x = dir.appendingPathComponent(base as String)
@@ -128,7 +128,7 @@ struct Theme {
         }
         let plist: [String: Any] = [
             "CapeName": name, "CapeVersion": 1.0, "Author": author, "Cloud": false, "HiDPI": true,
-            "Identifier": identifier ?? "dev.msig." + name.lowercased().replacingOccurrences(of: " ", with: "-"),
+            "Identifier": identifier ?? "dev.mouseskins." + name.lowercased().replacingOccurrences(of: " ", with: "-"),
             "MinimumVersion": 2.0, "Version": 2.0, "Cursors": dict,
         ]
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -172,11 +172,19 @@ struct Theme {
     }
 }
 
-/// Themes live in ~/Library/Application Support/msig/themes; the applied theme
+/// Themes live in ~/Library/Application Support/MouseSkins/themes; the applied theme
 /// and cursor size persist in state.json so login/wake can re-apply them.
 enum Store {
-    static let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("msig")
+    static let root: URL = {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let root = support.appendingPathComponent("MouseSkins")
+        // One-time move from the app's old name.
+        let legacy = support.appendingPathComponent("msig")
+        if !FileManager.default.fileExists(atPath: root.path), FileManager.default.fileExists(atPath: legacy.path) {
+            try? FileManager.default.moveItem(at: legacy, to: root)
+        }
+        return root
+    }()
     static let themesDir = root.appendingPathComponent("themes")
     static let stateURL = root.appendingPathComponent("state.json")
     static let defaultsURL = root.appendingPathComponent("macos-default.cape")
@@ -196,7 +204,7 @@ enum Store {
             enc.outputFormatting = [.prettyPrinted, .sortedKeys]
             try? enc.encode(newValue).write(to: stateURL, options: .atomic)
             DistributedNotificationCenter.default().postNotificationName(
-                .init("dev.msig.changed"), object: nil, deliverImmediately: true)
+                .init("dev.mouseskins.changed"), object: nil, deliverImmediately: true)
         }
     }
 
@@ -270,7 +278,7 @@ extension Store {
         return applySaved()
     }
 
-    /// 1 = normal, which also stops msig from managing the size.
+    /// 1 = normal, which also stops MouseSkins from managing the size.
     static func setScale(_ value: Float) {
         Cursors.scale = value
         var s = state
